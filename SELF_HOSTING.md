@@ -14,6 +14,17 @@ The complete source is in [SpEc012/checkers](https://github.com/SpEc012/checkers
 
 The two deployments have separate data. Use the same address on both players' devices. Test-site rooms and pictures do not transfer automatically. The app's requests and photo URLs are relative to its current host; lovebugs.world will not call the ChatGPT backend. Google Fonts remains an optional external font source, with local fallback fonts.
 
+## Tonight’s launch checklist
+
+- Complete steps 1–4 below: activate the Cloudflare domain, sign in, create the database and bucket, then generate config and deploy.
+- Use the real database UUID in `npm run setup:self -- --database-id YOUR_DATABASE_ID --domain`.
+- Run `npm run deploy:self` and wait for success before sharing the address.
+- Open lovebugs.world on two devices and complete the checks in step 5.
+- The GitHub automation in step 6 is optional tonight; local deployment is sufficient.
+- Keep the ChatGPT test address available. It is a separate deployment and its rooms do not appear on your domain.
+
+Sound starts enabled on a new device and unlocks on the first click, tap, or key press. Sound off mutes game and message sounds and is remembered on that browser. Browser notifications remain separately opt-in.
+
 ## 1. Add the domain to Cloudflare
 
 Create or sign into your Cloudflare account and add `lovebugs.world` as a domain. Follow the domain setup, review imported DNS records, and copy the two nameservers Cloudflare assigns specifically to you.
