@@ -1,5 +1,5 @@
 import { initial, apply } from '../public/engine.mjs';
-import {newGame,dropHeart,placeTile,drawingAction,publicGame,gameNames,puzzleOptions,puzzleAction,memoryAction,dotsAction,rpsAction} from '../public/arcade.mjs';
+import {newGame,dropHeart,placeTile,drawingAction,publicGame,gameNames,puzzleOptions,puzzleAction,memoryAction,rpsAction} from '../public/arcade.mjs';
 const LIVE=45000, EXPIRE=86400000;
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status})};
@@ -12,7 +12,7 @@ export async function api(request,env){try{
  const db=database(env),url=new URL(request.url),now=Date.now();
  if(request.method==='GET'&&url.pathname==='/api/rooms'){
   const {results}=await db.prepare('SELECT id,name,host_name,guest_name,guest,pin,host_seen,guest_seen,state FROM rooms WHERE closed=0 AND updated>? ORDER BY updated DESC LIMIT 50').bind(now-LIVE).all();
-  return json({rooms:results.filter(r=>Math.max(r.host_seen,r.guest_seen)>now-LIVE).map(r=>({id:r.id,name:r.name,game:JSON.parse(r.state).game||'checkers',hostName:r.host_name,players:r.guest?2:1,locked:!!r.pin,joinable:!r.guest&&r.host_seen>now-LIVE}))});
+  return json({rooms:results.filter(r=>Math.max(r.host_seen,r.guest_seen)>now-LIVE).map(r=>({id:r.id,name:r.name,game:gameNames[JSON.parse(r.state).game]?JSON.parse(r.state).game:'checkers',hostName:r.host_name,players:r.guest?2:1,locked:!!r.pin,joinable:!r.guest&&r.host_seen>now-LIVE}))});
  }
  if(request.method!=='POST')return json({error:'Not found'},404);
  const origin=request.headers.get('Origin');if(origin&&origin!==url.origin)fail('This request is not allowed.',403);
@@ -33,6 +33,10 @@ export async function api(request,env){try{
   const res=await db.prepare('UPDATE rooms SET guest=?,guest_name=?,guest_seen=?,updated=?,revision=revision+1 WHERE id=? AND guest IS NULL AND closed=0').bind(token,clean(body.playerName,24)||'Audrey',now,now,id).run();if(!res.meta.changes)fail('Someone just took that seat.',409);r=await db.prepare('SELECT * FROM rooms WHERE id=?').bind(id).first();isGuest=true;
  }
  if(!isHost&&!isGuest)fail('You do not have a seat in this room.',403);
+ if(JSON.parse(r.state).game==='dots'){
+  await db.prepare('UPDATE rooms SET state=?,revision=revision+1,updated=? WHERE id=? AND revision=? AND closed=0').bind(JSON.stringify(newGame('checkers')),now,id,r.revision).run();
+  r=await db.prepare('SELECT * FROM rooms WHERE id=?').bind(id).first();
+ }
  const side=isHost?r.host_side:opposite(r.host_side);
  if(action==='photo-read'){
   const st=JSON.parse(r.state);if(!st.photoKey||!env.BUCKET)fail('Photo not found.',404);const object=await env.BUCKET.get(st.photoKey);if(!object)fail('Photo not found.',404);return new Response(object.body,{headers:{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -69,7 +73,7 @@ export async function api(request,env){try{
  }else if(action==='play'){
   if(!r.guest||(isHost?r.guest_seen:r.host_seen)<now-LIVE)fail('Wait for your person to reconnect.',409);
   if(body.revision!==r.revision)fail('Your game changed. Try again.',409);
-  let next=null;try{if(state.game==='connect4')next=dropHeart(state,body.column,side);else if(state.game==='puzzle')next=puzzleAction(state,body);else if(state.game==='memory')next=memoryAction(state,body.index,side,now);else if(state.game==='dots')next=dotsAction(state,body.edge,side);else if(state.game==='rps')next=rpsAction(state,body,side);else if(state.game==='draw')next=drawingAction(state,body.action,body,side);}catch(e){fail(e.message)}
+  let next=null;try{if(state.game==='connect4')next=dropHeart(state,body.column,side);else if(state.game==='puzzle')next=puzzleAction(state,body);else if(state.game==='memory')next=memoryAction(state,body.index,side,now);else if(state.game==='rps')next=rpsAction(state,body,side);else if(state.game==='draw')next=drawingAction(state,body.action,body,side);}catch(e){fail(e.message)}
   if(!next)fail('That move is not allowed.');if(!state.winner&&next.winner){if(['rose','cream'].includes(next.winner))score[next.winner]++;else if(next.winner==='together'){score.rose++;score.cream++;}}state=next;
  }else if(action==='chat'){
   const value=clean(body.text,400);if(!value)fail('Write a message first.');if(messages.some(m=>m.side===side&&m.at>now-400))fail('One little moment between messages ♡',429);
