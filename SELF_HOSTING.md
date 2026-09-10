@@ -48,6 +48,8 @@ A browser opens for Cloudflare sign-in. Select the account containing lovebugs.w
 
 Already cloned it? Open that folder, run `git pull` and `npm ci`, then continue. Preserve your local edits if Git reports a conflict.
 
+To look at the site before deploying, run `npm run dev` and open the printed address. Side by side play, the lovebugs and every game surface work there; online rooms need the Worker and D1 from the steps below.
+
 ## 3. Create your database and photo bucket
 
 ```sh
@@ -82,6 +84,7 @@ Open `https://lovebugs.world`. The `www` version redirects to the root address, 
 4. Upload a photo to Photo Puzzle. Both players should see it. Try a harder cut and agree to the change.
 5. Try a local game, reload an online room in the same tab, and check the mobile Game/Chat/Room tabs.
 6. Enable notification permissions again on this new address. Closed or suspended tabs do not receive reliable chat alerts.
+7. Watch for the lovebugs wandering the page, and add the site to a phone home screen to check the ladybug icon. If the movement is distracting, turn it off under **Alerts → Let the lovebugs wander the page**; the choice is remembered on that device.
 
 ## 6. Publish future updates from GitHub
 

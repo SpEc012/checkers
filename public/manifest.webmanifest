@@ -1,0 +1,18 @@
+{
+  "name": "Our Little Arcade",
+  "short_name": "Lovebugs",
+  "description": "Six cozy games for two. One room, wherever you are.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fff5f3",
+  "theme_color": "#a52f51",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
