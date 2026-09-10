@@ -1,0 +1,8 @@
+import {readFileSync,writeFileSync,mkdirSync,cpSync,rmSync} from 'node:fs';
+const manifest=JSON.parse(readFileSync('.openai/hosting.json','utf8'));
+rmSync('dist',{recursive:true,force:true});mkdirSync('dist/server',{recursive:true});mkdirSync('dist/.openai',{recursive:true});
+let assets={};for(const [file,type] of [['index.html','text/html; charset=utf-8'],['style.css','text/css'],['app.mjs','text/javascript'],['engine.mjs','text/javascript']])assets['/'+file]={body:readFileSync('public/'+file,'utf8'),type};
+const engine=readFileSync('public/engine.mjs','utf8').replaceAll('export function','function');
+const api=readFileSync('server/api.mjs','utf8').replace("import { initial, apply } from '../public/engine.mjs';",'').replace('export async function api','async function api');
+writeFileSync('dist/server/index.js',engine+'\n'+api+'\nconst assets='+JSON.stringify(assets)+';\nexport default {async fetch(request,env){const path=new URL(request.url).pathname;if(path.startsWith("/api/"))return api(request,env);const asset=assets[path==="/"?"/index.html":path];return asset?new Response(asset.body,{headers:{"Content-Type":asset.type,"Cache-Control":"no-cache","X-Content-Type-Options":"nosniff"}}):new Response("Not found",{status:404});}};');
+writeFileSync('dist/.openai/hosting.json',JSON.stringify(manifest));cpSync('drizzle','dist/.openai/drizzle',{recursive:true});console.log('Worker, assets and D1 migrations built.');
