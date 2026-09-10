@@ -104,13 +104,14 @@ function updateHands(){
 }
 function closeCelebration(){clearTimeout(celebrationTimer);$('#victory').hidden=true;$('#victoryConfetti').replaceChildren()}
 function checkCelebration(){
- if(!state.winner){celebrated=null;closeCelebration();return}
- const key=sessionGeneration+':'+kind()+':'+state.winner+':'+state.ply+':'+(state.round||0);
+ const outcome=state.winner||(kind()==='rps'?state.roundResult:null);
+ if(!outcome){celebrated=null;closeCelebration();return}
+ const key=sessionGeneration+':'+kind()+':'+outcome+':'+state.ply+':'+(state.round||0);
  if(celebrated===key||rpsThrowing())return;celebrated=key;
- const copy=victoryCopy(state.winner,names,kind());$('#victoryBang').textContent=copy.bang;$('#victoryName').textContent=copy.headline;$('#victoryResult').textContent=copy.result;$('#victoryNote').textContent=copy.note;
+ const copy=victoryCopy(outcome,names,kind());if(kind()==='rps'&&outcome!=='draw')copy.result=state.winner?'WINS THE MATCH!':'WINS THIS THROW!';$('#victoryBang').textContent=copy.bang;$('#victoryName').textContent=copy.headline;$('#victoryResult').textContent=copy.result;$('#victoryNote').textContent=copy.note;
  const overlay=$('#victory');overlay.hidden=false;$('#victoryConfetti').replaceChildren();
  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)for(let i=0;i<36;i++){const chip=document.createElement('span');chip.textContent=i%9===0?'🐞':i%3===0?'✿':'♥';chip.style.setProperty('--x',Math.random()*100+'vw');chip.style.setProperty('--delay',Math.random()*.5+'s');chip.style.setProperty('--spin',(Math.random()*720-360)+'deg');$('#victoryConfetti').append(chip)}
  if(sound){unlockAudio();try{[261.63,329.63,392,523.25].forEach((hz,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain(),at=audioCtx.currentTime+i*.1;o.type='triangle';o.frequency.value=hz;o.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.07,at+.02);g.gain.exponentialRampToValueAtTime(.0001,at+.5);o.start(at);o.stop(at+.55)})}catch{}}
- clearTimeout(celebrationTimer);celebrationTimer=setTimeout(closeCelebration,5500);
+ clearTimeout(celebrationTimer);// Keep the result visible until dismissed, so neither player misses it.
 }
 $('#dismissVictory').onclick=closeCelebration;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCelebration()});
