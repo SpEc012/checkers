@@ -1,15 +1,22 @@
 // The Rock Paper Scissors countdown and the words on the victory card.
 
 import assert from 'node:assert/strict';
-import { throwFrame, victoryCopy, THROW_DURATION } from '../public/match-effects.mjs';
+import { throwFrame, armPose, victoryCopy, THROW_DURATION } from '../public/match-effects.mjs';
 
-// --- three full bounces, then the reveal ------------------------------------
-for (let beat = 0; beat < 3; beat++) {
-  assert.ok(throwFrame(beat * 0.72 + 0.36).bounce > 0.89, 'each beat lifts the hand');
-  assert.ok(throwFrame(beat * 0.72 + 0.001).bounce < 0.001, 'and lands it again');
-  assert.equal(throwFrame(beat * 0.72 + 0.36).blend, 0, 'the hand stays a fist until "shoot"');
+// Each beat winds up slowly and drives down quickly around a fixed elbow.
+for(let beat=0;beat<3;beat++){
+ const t=beat*.72;
+ assert.ok(throwFrame(t+.72*.51).swing>.69);
+ assert.ok(throwFrame(t+.72*.76).swing<-.09);
+ assert.equal(throwFrame(t+.36).blend,0);
+ for(const phase of [0,.2,.4,.55,.7]){
+  const frame=throwFrame(t+phase),left=armPose('rose',frame),right=armPose('cream',frame);
+  assert.equal(left.y,-.3);assert.equal(right.y,-.3);
+  assert.equal(left.x,-right.x);assert.equal(left.angle,-right.angle);
+  assert.equal(frame.bounce,0);
+ }
 }
-
+assert.ok(throwFrame(2.4).reach>.27,'the reveal extends toward the opponent');
 assert.equal(throwFrame(2.6).blend, 1);
 assert.equal(throwFrame(2.6).word, 'Shoot!');
 assert.ok(THROW_DURATION >= 2600, 'the UI must wait for the whole countdown');
@@ -27,4 +34,4 @@ assert.equal(victoryCopy('rose', { rose: 'Alex', cream: 'Sam' }, 'checkers').hea
 assert.equal(victoryCopy('together', names, 'puzzle').result, 'Win together!');
 assert.equal(victoryCopy('draw', {}, 'memory').bang, 'JINX!');
 
-console.log('Match effects: three full bounces, reveal timing, reduced motion, named wins, ties and cooperative results passed.');
+console.log('Match effects: fixed forearm pivots, mirrored downstrokes, reveal timing, reduced motion, named wins, ties and cooperative results passed.');

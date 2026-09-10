@@ -6,7 +6,7 @@
 /** How long the full "rock… paper… scissors… shoot!" sequence runs, in ms. */
 export const THROW_DURATION = 2700;
 
-const BEAT = 0.72; // seconds per bounce
+const BEAT = 0.72; // seconds per count
 const BEATS = 3;
 const WORDS = ['Rock!', 'Paper!', 'Scissors!'];
 
@@ -14,27 +14,31 @@ const WORDS = ['Rock!', 'Paper!', 'Scissors!'];
  * One frame of the countdown.
  * @param {number} elapsed seconds since the throw started
  * @param {boolean} reduced honour prefers-reduced-motion: skip straight to the reveal
- * @returns {{bounce:number, tilt:number, blend:number, word:string, impact:number}}
- *   `bounce`/`tilt` animate the fist, `blend` opens the hand into its final
- *   shape (0 → 1) and `impact` is the little recoil on the reveal.
+ * Returns swing around the forearm pivot, forward reach and finger reveal blend.
  */
+const clamp01 = n => Math.max(0, Math.min(1, n));
+const smooth = n => { const t=clamp01(n); return t*t*(3-2*t); };
+
 export function throwFrame(elapsed, reduced = false) {
-  if (reduced) return { bounce: 0, tilt: 0, blend: 1, word: 'Shoot!', impact: 0 };
+  if(reduced)return {bounce:0,tilt:0,swing:0,reach:.28,blend:1,word:'Shoot!',impact:0};
+  const time=Math.max(0,elapsed),shoot=BEAT*BEATS;
+  if(time>=shoot){
+    const t=time-shoot,blend=smooth(t/.22);
+    return {bounce:0,tilt:0,swing:-.055*Math.sin(Math.min(1,t/.3)*Math.PI),reach:.28*smooth(t/.18),blend,word:'Shoot!',impact:Math.max(0,1-t/.25)};
+  }
+  const phase=(time%BEAT)/BEAT;
+  // Elbow stays planted: prepare, hammer down quickly, then absorb the beat.
+  let swing;
+  if(phase<.52)swing=.1+.6*smooth(phase/.52);
+  else if(phase<.76)swing=.7-.8*((phase-.52)/.24)**2;
+  else swing=-.1+.2*smooth((phase-.76)/.24);
+  return {bounce:0,tilt:0,swing,reach:0,blend:0,word:WORDS[Math.floor(time/BEAT)],impact:0};
+}
 
-  const shoot = BEAT * BEATS;
-  const time = Math.max(0, elapsed);
-  const shaking = time < shoot;
-
-  // A firm downward beat followed by a full lift, three times in sync.
-  const lift = shaking ? Math.sin(((time % BEAT) / BEAT) * Math.PI) ** 2 : 0;
-
-  return {
-    bounce: lift * 0.9,
-    tilt: lift * 0.24,
-    blend: Math.min(1, Math.max(0, (time - shoot) / 0.32)),
-    word: shaking ? WORDS[Math.floor(time / BEAT)] : 'Shoot!',
-    impact: shaking ? 0 : Math.max(0, 1 - (time - shoot) / 0.28),
-  };
+/** Both forearms hinge from opposite sides; neither hand translates vertically. */
+export function armPose(side,frame){
+  const left=side==='rose';
+  return {x:left?-3:3,y:-.3,angle:(left?-Math.PI/2:Math.PI/2)+(left?1:-1)*frame.swing,extension:1.25+frame.reach};
 }
 
 /** The headline, result and note for a finished game. */
