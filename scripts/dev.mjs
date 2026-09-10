@@ -5,7 +5,7 @@
 // need the Worker and D1, so /api/ answers 503 here — Side by side works fully.
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { build } from 'esbuild';
 
@@ -23,16 +23,23 @@ const TYPES = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
-/** Bundle the scene once per run so `import 'three'` resolves in the browser. */
-let scenePromise = null;
-function bundleScene() {
-  scenePromise ??= build({
+/**
+ * Bundle the scene so `import 'three'` resolves in the browser. The result is
+ * cached against the file's timestamp, so editing the scene and reloading
+ * picks the change up without restarting the server.
+ */
+let sceneCache = { stamp: 0, code: null };
+async function bundleScene() {
+  const { mtimeMs } = await stat(join(ROOT, 'rps-scene.mjs'));
+  if (sceneCache.code && sceneCache.stamp === mtimeMs) return sceneCache.code;
+  const result = await build({
     entryPoints: [join(ROOT, 'rps-scene.mjs')],
     bundle: true,
     format: 'esm',
     write: false,
-  }).then(result => result.outputFiles[0].text);
-  return scenePromise;
+  });
+  sceneCache = { stamp: mtimeMs, code: result.outputFiles[0].text };
+  return sceneCache.code;
 }
 
 createServer(async (request, response) => {

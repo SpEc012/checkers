@@ -108,8 +108,8 @@ function saveAlertPrefs() {
 
 const audio = createAudio(() => sound);
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-// A phone gets a smaller colony than a desktop.
-const lovebugs = createLovebugs({ count: () => (matchMedia('(max-width: 760px)').matches ? 2 : 3) });
+// Two on a desktop, one on a phone. They are meant to be found, not watched.
+const lovebugs = createLovebugs({ count: () => (matchMedia('(max-width: 760px)').matches ? 1 : 2) });
 
 // A per-tab credential. Reloading the same tab keeps your seat; a new tab is a
 // new player.

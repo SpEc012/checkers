@@ -17,14 +17,14 @@ The server stores room state, up to 100 chat messages, score, and hashed player 
 | `public/engine.mjs` | American checkers rules. Pure functions, shared with the server. |
 | `public/arcade.mjs` | The other five games plus the redaction rules for hidden information. |
 | `public/app.mjs` | The app: state, rendering, input and talking to the room API. |
-| `public/lovebugs.mjs` | The ladybugs that wander the page, and the drawing they share. |
+| `public/lovebugs.mjs` | The ladybirds that wander the page, and the drawing they share. |
 | `public/celebration.mjs` | The victory overlay, kept testable outside a browser. |
 | `public/sound.mjs` | Chimes and the win fanfare, synthesised on demand. |
-| `public/rps-scene.mjs` | The Three.js hands, loaded only when Rock Paper Scissors opens. |
+| `public/rps-scene.mjs` | The jointed Three.js hands, loaded only when Rock Paper Scissors opens. |
 | `public/match-effects.mjs` | Countdown timing and the words on the victory card. |
 | `public/style.css` | One stylesheet, design tokens first, in numbered sections. |
 | `server/api.mjs` | The Worker API: prepared D1 queries and revision-checked updates. |
-| `scripts/icon-art.mjs` | The lovebug mark, described once as shapes. |
+| `scripts/icon-art.mjs` | The site mark — a heart on a cherry tile — described once as shapes. |
 | `scripts/make-icons.mjs` | Renders that mark to `favicon.svg`, the mask icon and the PNG icons. |
 | `db/schema.ts`, `drizzle/` | Schema and generated immutable migrations. |
 
@@ -35,7 +35,7 @@ Commands:
 | `npm run dev` | Local preview on `http://localhost:8080`. Side by side works; online rooms need the Worker. |
 | `npm run build` | Bundles the Worker, embeds everything in `public/`, and copies hosting metadata and migrations. |
 | `npm run icons` | Regenerates the icon files after editing `scripts/icon-art.mjs`. |
-| `npm test` | Rules, two-player API interactions against SQLite, celebration, lovebug motion and icon checks. |
+| `npm test` | Rules, two-player API interactions against SQLite, celebration, throw animation, lovebug motion and icon checks. |
 
 `scripts/build.mjs` discovers assets from `public/` rather than a list, so a new file there ships automatically; binary files are embedded as base64 and served with a day of cache.
 
@@ -67,13 +67,17 @@ The existing layout is preserved with its original palette and small stationary 
 
 ## The lovebugs move in (version 5)
 
-**The bugs.** The ladybugs are drawn in SVG now — round shell, heart-shaped middle spot, big eyes, rosy cheeks, six little legs — and a small colony wanders the page. They crawl the quiet margins with their legs scuttling, leave a dotted path that fades behind them, open their wings for the occasional flight straight across the page, and scurry away when the pointer gets close. Win a game and everybody takes off, trailing hearts. A love note arriving while you are looking elsewhere sends the nearest one over to the chat panel.
+**The bugs.** The three ladybirds that sat still in the corners are the same plain seven-spot bug they always were — red shell, black seam, dark pronotum with two pale marks — only now they are drawn rather than typed, and a couple of them are alive. Two (one on a phone) keep to the band along the edges of the page, strongly favouring the corners and mostly staying away from the header. They crawl slowly on six jointed legs in a proper alternating tripod, at a stride driven by how far they have actually travelled, and leave a faint dotted path that fades out behind them. Every so often one opens its wings and flies a short hop, usually along an edge. They stop for up to twenty seconds at a time. They are meant to be found, not watched.
 
-Three bugs on a desktop, two on a phone. They live in one fixed layer that never takes a click, they pause with the tab, they are switched off entirely under `prefers-reduced-motion`, and **Alerts ♡ → Let the lovebugs wander the page** turns them off by choice; the preference is kept per device. The same drawing supplies the still bugs tucked into the header, the menu and the footer.
+They also react: the pointer coming close makes one dart away, a win sends both up trailing little hearts, and a love note arriving while you are looking elsewhere sends the nearest one over to the chat panel.
 
-**Icons.** `scripts/icon-art.mjs` describes the mark once as ellipses, rounded rectangles and one heart path. `npm run icons` renders it into `favicon.svg` (tab icon), `mask-icon.svg` (Safari pinned tabs), `apple-touch-icon.png` and the 192/512 PNGs referenced by `manifest.webmanifest`, so the arcade installs to a home screen with its own icon and theme colour. The PNG encoder is a small rasteriser plus zlib — no image dependency — and `npm test` fails if the committed files drift from the artwork.
+They live in one fixed layer that never takes a click, pause with the tab, switch off entirely under `prefers-reduced-motion`, and **Alerts ✦ → Let the lovebugs wander the page** turns them off by choice, per device. The same drawing supplies the still bugs in the menu, the chat card and the footer.
 
-**The house.** Every source file was rewritten to be read: the markup is indented and commented, the stylesheet is one pass over design tokens instead of five layers of overrides, and `app.mjs` is split into numbered sections with sound, celebration and lovebugs lifted into their own modules. Dead rules for a game that no longer exists are gone, unused imports removed, and the build no longer keeps a hand-maintained list of assets. The celebration test now drives the real module through a stand-in document rather than slicing a function out of the source text, and there are new tests for lovebug motion and the icons.
+**Rock Paper Scissors.** The hands were rebuilt from scratch. Each one is a forearm, a palm made of five metacarpal bones with a thumb mound and a heel, four fingers of three tapering phalanges with fingernails, and a thumb with its own three joints — every joint a nested group turning on one axis, so a single "openness" number carries a fist into paper or into scissors. The countdown got a wrist roll that leads each of the three beats, and the reveal unfurls the fingers one after another with a short overshoot, a recoil that pushes the hands apart, a damped settle, and a small camera push-in. Skin uses a sheened physical material under a key, fill and rim light.
+
+**Icons.** `scripts/icon-art.mjs` describes the mark once — one cream heart on a cherry tile — and `npm run icons` renders it into `favicon.svg` (tab icon), `mask-icon.svg` (Safari pinned tabs), `apple-touch-icon.png` and the 192/512 PNGs referenced by `manifest.webmanifest`, so the arcade installs to a home screen with its own icon and theme colour. The PNG encoder is a small rasteriser plus zlib — no image dependency — and `npm test` fails if the committed files drift from the artwork.
+
+**The house.** Every source file was rewritten to be read: the markup is indented and commented, the stylesheet is one pass over design tokens instead of five layers of overrides, and `app.mjs` is split into numbered sections with sound, celebration and lovebugs lifted into their own modules. Dead rules for a game that no longer exists are gone, unused imports removed, and the build no longer keeps a hand-maintained list of assets. The celebration test now drives the real module through a stand-in document rather than slicing a function out of the source text, and there are new tests for lovebug motion, the throw animation and the icons.
 
 **Design.** Same palette, tidier: a six-card game menu on a three-column grid, per-game tints, consistent focus rings and press states, softer card shadows, chat bubbles with a tail, a pulsing hint marker on legal squares, and a proper fallback font stack for when Google Fonts is unreachable.
 

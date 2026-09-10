@@ -1,23 +1,20 @@
-// The lovebug mark, described once and emitted as both SVG and PNG.
+// The site mark, described once and emitted as both SVG and PNG.
 //
-// Everything is drawn on a 64 x 64 grid with three primitives — ellipse,
-// rounded rectangle and cubic path — so the same shape list can be turned into
-// vector markup (favicon.svg, mask-icon.svg) or rasterised into the PNG icons
-// that iOS and Android ask for. Keeping one source means the tab icon and the
-// home-screen icon can never drift apart.
+// One heart on a cherry tile — the same thing the header brandmark shows.
+// Everything is drawn on a 64 x 64 grid from three primitives (ellipse,
+// rounded rectangle, cubic path) so the same shape list can become vector
+// markup for the tab icon or be rasterised into the PNGs iOS and Android ask
+// for. One source means the tab icon and the home-screen icon cannot drift.
 
 export const GRID = 64;
 
 export const palette = {
-  cream: '#fff8f2',
-  blush: '#ffe4ea',
-  petal: '#f7c8d6',
-  shellLight: '#f4718f',
-  shellMid: '#df4a6f',
-  shellDeep: '#b32a4c',
-  ink: '#3b2130',
-  inkSoft: '#7c1d3a',
-  white: '#fffdfb',
+  tileLight: '#c43e63',
+  tileMid: '#ae3155',
+  tileDeep: '#8a2041',
+  heartLight: '#fff6f3',
+  heartMid: '#ffe6e6',
+  heartDeep: '#ffcdd6',
   glint: '#ffffff',
 };
 
@@ -45,67 +42,29 @@ export function heart(cx, cy, w, h = w * 0.92) {
   });
 }
 
-const shellGradient = {
+const tileGradient = {
+  type: 'radial',
+  cx: 20,
+  cy: 14,
+  r: 66,
+  stops: [
+    [0, palette.tileLight],
+    [0.55, palette.tileMid],
+    [1, palette.tileDeep],
+  ],
+};
+
+const heartGradient = {
   type: 'radial',
   cx: 24,
-  cy: 25,
-  r: 30,
+  cy: 22,
+  r: 42,
   stops: [
-    [0, palette.shellLight],
-    [0.55, palette.shellMid],
-    [1, palette.shellDeep],
+    [0, palette.heartLight],
+    [0.6, palette.heartMid],
+    [1, palette.heartDeep],
   ],
 };
-
-const backdropGradient = {
-  type: 'radial',
-  cx: 23,
-  cy: 20,
-  r: 58,
-  stops: [
-    [0, palette.cream],
-    [0.6, palette.blush],
-    [1, palette.petal],
-  ],
-};
-
-/** The bug itself: shell, spots, face and antennae, without any backdrop. */
-function lovebugShapes() {
-  return [
-    // Antennae, drawn first so the head caps their roots.
-    { type: 'roundRect', x: 25.4, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: -20, fill: palette.ink },
-    { type: 'roundRect', x: 36.7, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: 20, fill: palette.ink },
-    { type: 'ellipse', cx: 24.2, cy: 3.8, rx: 2.5, ry: 2.5, fill: palette.ink },
-    { type: 'ellipse', cx: 39.8, cy: 3.8, rx: 2.5, ry: 2.5, fill: palette.ink },
-
-    // Wing shell.
-    { type: 'ellipse', cx: 32, cy: 34, rx: 20, ry: 18.6, fill: shellGradient },
-    { type: 'roundRect', x: 31.05, y: 16, w: 1.9, h: 35, r: 0.95, fill: palette.inkSoft, opacity: 0.45 },
-
-    // A soft gloss across the top-left of the shell.
-    { type: 'ellipse', cx: 22.6, cy: 24, rx: 6.6, ry: 2.7, rot: -32, fill: palette.glint, opacity: 0.2 },
-
-    // Spots: two up top, a heart in the middle, two little ones below.
-    { type: 'ellipse', cx: 21.4, cy: 29.6, rx: 3.9, ry: 3.7, fill: palette.ink },
-    { type: 'ellipse', cx: 42.6, cy: 29.6, rx: 3.9, ry: 3.7, fill: palette.ink },
-    { type: 'path', d: heart(32, 40, 10.6), fill: palette.ink },
-    { type: 'ellipse', cx: 22.6, cy: 42.4, rx: 2.7, ry: 2.5, fill: palette.ink },
-    { type: 'ellipse', cx: 41.4, cy: 42.4, rx: 2.7, ry: 2.5, fill: palette.ink },
-
-    // Head and face.
-    { type: 'ellipse', cx: 32, cy: 17, rx: 11, ry: 10.3, fill: palette.ink },
-    { type: 'ellipse', cx: 27.3, cy: 15.9, rx: 3.2, ry: 3.4, fill: palette.white },
-    { type: 'ellipse', cx: 36.7, cy: 15.9, rx: 3.2, ry: 3.4, fill: palette.white },
-    { type: 'ellipse', cx: 27.9, cy: 16.7, rx: 1.6, ry: 1.7, fill: palette.ink },
-    { type: 'ellipse', cx: 37.3, cy: 16.7, rx: 1.6, ry: 1.7, fill: palette.ink },
-    { type: 'ellipse', cx: 27.0, cy: 15.0, rx: 0.9, ry: 0.9, fill: palette.glint, opacity: 0.9 },
-    { type: 'ellipse', cx: 36.4, cy: 15.0, rx: 0.9, ry: 0.9, fill: palette.glint, opacity: 0.9 },
-
-    // Rosy cheeks, tucked under the eyes.
-    { type: 'ellipse', cx: 25.6, cy: 21.2, rx: 2.4, ry: 1.5, fill: palette.shellLight, opacity: 0.5 },
-    { type: 'ellipse', cx: 38.4, cy: 21.2, rx: 2.4, ry: 1.5, fill: palette.shellLight, opacity: 0.5 },
-  ];
-}
 
 /**
  * Shape list for one icon flavour.
@@ -114,19 +73,14 @@ function lovebugShapes() {
  */
 export function iconShapes(flavour = 'app') {
   if (flavour === 'mask') {
-    return [
-      { type: 'ellipse', cx: 32, cy: 34.5, rx: 19.6, ry: 18.4, fill: '#000000' },
-      { type: 'ellipse', cx: 32, cy: 17.6, rx: 10.9, ry: 10.2, fill: '#000000' },
-      { type: 'roundRect', x: 25.4, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: -20, fill: '#000000' },
-      { type: 'roundRect', x: 36.7, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: 20, fill: '#000000' },
-      { type: 'ellipse', cx: 24.2, cy: 3.8, rx: 2.5, ry: 2.5, fill: '#000000' },
-      { type: 'ellipse', cx: 39.8, cy: 3.8, rx: 2.5, ry: 2.5, fill: '#000000' },
-    ];
+    return [{ type: 'path', d: heart(32, 33, 50, 46), fill: '#000000' }];
   }
   return [
-    { type: 'roundRect', x: 0, y: 0, w: GRID, h: GRID, r: 15, fill: backdropGradient },
-    { type: 'ellipse', cx: 32, cy: 51.5, rx: 15.5, ry: 3.6, fill: '#8d4a63', opacity: 0.22 },
-    ...lovebugShapes(),
+    { type: 'roundRect', x: 0, y: 0, w: GRID, h: GRID, r: 15, fill: tileGradient },
+    // A whisper of a shadow under the heart keeps it off the tile.
+    { type: 'path', d: heart(32, 35.4, 40.5, 37), fill: '#5d1029', opacity: 0.22 },
+    { type: 'path', d: heart(32, 33.4, 40, 36.5), fill: heartGradient },
+    { type: 'ellipse', cx: 22.4, cy: 24.2, rx: 4.6, ry: 2.4, rot: -34, fill: palette.glint, opacity: 0.36 },
   ];
 }
 
@@ -145,6 +99,10 @@ function gradientMarkup(fill, id) {
   return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${fill.cx}" cy="${fill.cy}" r="${fill.r}">${stops}</radialGradient>`;
 }
 
+function shapeCentre(shape) {
+  return shape.type === 'ellipse' ? [shape.cx, shape.cy] : [shape.x + shape.w / 2, shape.y + shape.h / 2];
+}
+
 function shapeMarkup(shape, fill) {
   const opacity = shape.opacity === undefined ? '' : ` opacity="${shape.opacity}"`;
   const rotation = shape.rot ? ` transform="rotate(${shape.rot} ${shapeCentre(shape).join(' ')})"` : '';
@@ -157,12 +115,8 @@ function shapeMarkup(shape, fill) {
   return `<path d="${pathData(shape.d)}" fill="${fill}"${opacity}${rotation}/>`;
 }
 
-function shapeCentre(shape) {
-  return shape.type === 'ellipse' ? [shape.cx, shape.cy] : [shape.x + shape.w / 2, shape.y + shape.h / 2];
-}
-
 /** Render a flavour as standalone SVG markup. */
-export function toSVG(flavour = 'app', { title = 'Lovebug' } = {}) {
+export function toSVG(flavour = 'app', { title = 'Our Little Arcade' } = {}) {
   const shapes = iconShapes(flavour);
   const defs = [];
   const body = shapes

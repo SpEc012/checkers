@@ -321,11 +321,12 @@ header {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: radial-gradient(circle at 34% 28%, #fff7f2, #ffdde5 70%, #f6c4d2);
-  border: 1px solid #f3ccd8;
-  color: var(--red);
+  background: radial-gradient(circle at 32% 26%, #c43e63, #ae3155 58%, #8a2041);
+  color: #ffece9;
   font-family: serif;
-  box-shadow: inset 0 1px 0 #fff;
+  font-size: 21px;
+  line-height: 1;
+  box-shadow: 0 2px 7px #8a204133;
 }
 
 .brand .tiny {
@@ -1892,8 +1893,9 @@ dialog p {
 
 /* ------------------------------------------------------------- 15 lovebugs */
 
-/* The wandering colony lives in one fixed layer above the page but below
-   dialogs, and never intercepts a click. */
+/* The colony lives in one fixed layer above the page but below dialogs, and
+   never intercepts a click. They are deliberately quiet: small, a little
+   translucent, and mostly out at the edges. */
 .lovebug-layer {
   position: fixed;
   inset: 0;
@@ -1908,37 +1910,42 @@ dialog p {
   height: 100%;
 }
 
+.lovebug-swarm {
+  opacity: .82;
+}
+
 .lovebug-shadow {
-  fill: #7b3a54;
+  fill: #6c3a44;
 }
 
 .lovebug-legs path,
 .lovebug-antennae path {
   fill: none;
-  stroke: #3b2130;
-  stroke-width: 1.4;
+  stroke: #1d1416;
+  stroke-width: 1.15;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* The dotted path a bug leaves behind it. `fill-box` keeps the fade animation
    scaling each dot in place rather than towards the corner of the layer. */
 .lovebug-dot {
-  fill: #d9738f;
+  fill: #c98ba0;
   transform-box: fill-box;
   transform-origin: center;
 }
 
 .lovebug-dot-air {
-  fill: #c288c4;
+  fill: #b596c6;
 }
 
 .lovebug-dot-heart {
-  fill: #d94f74;
+  fill: #d9526f;
 }
 
 .lovebug-wings {
   opacity: 0;
-  transition: opacity .22s var(--ease);
+  transition: opacity .2s var(--ease);
 }
 
 .lovebug.is-flying .lovebug-wings {
@@ -1951,63 +1958,51 @@ dialog p {
 
 .lovebug-wing-left {
   transform-origin: 92% 50%;
-  transform: rotate(-20deg);
+  transform: rotate(-18deg);
 }
 
 .lovebug-wing-right {
   transform-origin: 8% 50%;
-  transform: rotate(20deg);
+  transform: rotate(18deg);
 }
 
 .lovebug.is-flying .lovebug-wing-left {
-  animation: lovebug-flap-left .11s linear infinite alternate;
+  animation: lovebug-flap-left .09s linear infinite alternate;
 }
 
 .lovebug.is-flying .lovebug-wing-right {
-  animation: lovebug-flap-right .11s linear infinite alternate;
+  animation: lovebug-flap-right .09s linear infinite alternate;
 }
 
 @keyframes lovebug-flap-left {
-  from { transform: rotate(-42deg) scaleY(.6); }
-  to { transform: rotate(-6deg) scaleY(1); }
+  from { transform: rotate(-40deg) scaleY(.55); }
+  to { transform: rotate(-4deg) scaleY(1); }
 }
 
 @keyframes lovebug-flap-right {
-  from { transform: rotate(42deg) scaleY(.6); }
-  to { transform: rotate(6deg) scaleY(1); }
+  from { transform: rotate(40deg) scaleY(.55); }
+  to { transform: rotate(4deg) scaleY(1); }
 }
 
-.lovebug-leg-set {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.lovebug.is-walking .lovebug-leg-a {
-  animation: lovebug-scuttle .3s ease-in-out infinite alternate;
-}
-
-.lovebug.is-walking .lovebug-leg-b {
-  animation: lovebug-scuttle .3s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes lovebug-scuttle {
-  from { transform: rotate(-8deg); }
-  to { transform: rotate(8deg); }
+/* Walking legs are driven from JavaScript so the stride matches the speed;
+   the antennae just twitch now and then. */
+.lovebug-leg {
+  transition: transform .12s linear;
 }
 
 .lovebug-antennae {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: lovebug-twitch 3.1s ease-in-out infinite;
+  animation: lovebug-twitch 6.5s ease-in-out infinite;
 }
 
 @keyframes lovebug-twitch {
-  0%, 72%, 100% { transform: rotate(0); }
-  80% { transform: rotate(-7deg); }
-  90% { transform: rotate(6deg); }
+  0%, 86%, 100% { transform: rotate(0); }
+  90% { transform: rotate(-6deg); }
+  95% { transform: rotate(5deg); }
 }
 
-/* Decorative bugs tucked into the layout. */
+/* Still bugs tucked into the layout. */
 .lovebug-spot {
   display: inline-grid;
   place-items: center;
@@ -2019,36 +2014,55 @@ dialog p {
 .lovebug-decor {
   overflow: visible;
   rotate: var(--tilt, 0deg);
-  filter: drop-shadow(0 2px 2px #63394426);
+  opacity: .8;
+  filter: drop-shadow(0 1px 1px #6339442e);
 }
 
 .lovebug-decor .lovebug-body {
   transform-box: fill-box;
   transform-origin: center;
-  animation: lovebug-bob 3.6s ease-in-out infinite;
+  animation: lovebug-bob 7s ease-in-out infinite;
+}
+
+/* Every so often a resting bug shuffles its feet. */
+.lovebug-decor .lovebug-leg {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lovebug-shuffle 9s ease-in-out infinite;
+}
+
+.lovebug-decor .lovebug-leg:nth-child(2n) {
+  animation-delay: -.18s;
 }
 
 @keyframes lovebug-bob {
-  0%, 100% { transform: translateY(0) rotate(0); }
-  50% { transform: translateY(-1.5px) rotate(1.6deg); }
+  0%, 88%, 100% { transform: translateY(0) rotate(0); }
+  92% { transform: translateY(-.6px) rotate(1.4deg); }
+  96% { transform: translateY(0) rotate(-1deg); }
+}
+
+@keyframes lovebug-shuffle {
+  0%, 88%, 100% { transform: rotate(0); }
+  91% { transform: rotate(7deg); }
+  94% { transform: rotate(-6deg); }
 }
 
 .menu-bug {
   position: absolute;
-  right: 4px;
-  top: -14px;
+  right: 8px;
+  top: -6px;
 }
 
 .chat-bug {
   position: absolute;
-  right: 14px;
-  top: -9px;
+  right: 16px;
+  top: -7px;
 }
 
 .footer-bug {
   position: absolute;
   left: max(18px, 8vw);
-  bottom: 14px;
+  bottom: 16px;
 }
 
 /* ----------------------------------------------------------- 16 responsive */

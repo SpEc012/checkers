@@ -1,6 +1,6 @@
-// Site icons. The artwork lives in scripts/icon-art.mjs and every file in
-// public/ is generated from it, so this test guards against the committed
-// icons drifting away from the source drawing.
+// Site icons. The artwork — one heart on a cherry tile — lives in
+// scripts/icon-art.mjs and every file in public/ is generated from it, so this
+// test guards against the committed icons drifting away from the drawing.
 //
 // Run `npm run icons` after changing the artwork.
 
@@ -13,12 +13,12 @@ const read = file => readFileSync(new URL(`../public/${file}`, import.meta.url))
 
 // --- the vectors match the artwork ------------------------------------------
 assert.equal(read('favicon.svg').toString(), toSVG('app', { title: 'Our Little Arcade' }), 'favicon.svg is stale — run npm run icons');
-assert.equal(read('mask-icon.svg').toString(), toSVG('mask', { title: 'Lovebug' }), 'mask-icon.svg is stale — run npm run icons');
+assert.equal(read('mask-icon.svg').toString(), toSVG('mask', { title: 'Our Little Arcade' }), 'mask-icon.svg is stale — run npm run icons');
 
 const favicon = read('favicon.svg').toString();
 assert.ok(favicon.startsWith('<svg xmlns='), 'a standalone SVG document');
 assert.ok(favicon.includes(`viewBox="0 0 ${GRID} ${GRID}"`));
-assert.ok(favicon.includes('<radialGradient'), 'the shell keeps its sheen');
+assert.ok(favicon.includes('<radialGradient'), 'the tile and the heart keep their gradients');
 assert.ok(read('mask-icon.svg').toString().includes('#000000'), 'the pinned-tab mask is a flat silhouette');
 
 // --- the PNGs are real PNGs of the right size --------------------------------
@@ -44,11 +44,16 @@ const at = (x, y) => {
 assert.equal(at(size / 2, size / 2)[3], 255, 'the middle of the icon is opaque');
 assert.equal(at(0, 0)[3], 0, 'the rounded corner is transparent');
 
-const middle = at(size / 2, Math.round(size * 0.62));
-assert.ok(middle[0] > middle[2], 'the shell reads as a warm red');
+const heartPixel = at(size / 2, Math.round(size * 0.45));
+assert.ok(heartPixel[0] > 240 && heartPixel[1] > 200, 'the heart reads as pale cream');
+
+const tilePixel = at(Math.round(size * 0.06), Math.round(size / 2));
+assert.ok(tilePixel[0] > tilePixel[1] + 60, 'the tile behind it reads as cherry red');
+assert.ok(heartPixel[1] > tilePixel[1] + 60, 'the heart stands off the tile');
 
 const shapes = iconShapes('app');
-assert.ok(shapes.some(shape => shape.type === 'path'), 'the heart spot is still there');
+assert.equal(shapes.filter(shape => shape.type === 'path').length, 2, 'the heart and the shadow under it');
+assert.equal(iconShapes('mask').length, 1, 'the mask is a single silhouette');
 assert.ok(iconShapes('mask').every(shape => shape.fill === '#000000'), 'the mask has no colour');
 
-console.log('Icon checks passed: vectors match the artwork, PNGs are well formed, and the lovebug still draws.');
+console.log('Icon checks passed: vectors match the artwork, PNGs are well formed, and the heart still draws.');

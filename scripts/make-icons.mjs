@@ -13,7 +13,7 @@ import { GRID, iconShapes, toSVG } from './icon-art.mjs';
 
 const OUTPUTS = [
   { file: 'favicon.svg', build: () => Buffer.from(toSVG('app', { title: 'Our Little Arcade' })) },
-  { file: 'mask-icon.svg', build: () => Buffer.from(toSVG('mask', { title: 'Lovebug' })) },
+  { file: 'mask-icon.svg', build: () => Buffer.from(toSVG('mask', { title: 'Our Little Arcade' })) },
   { file: 'apple-touch-icon.png', build: () => png(180) },
   { file: 'icon-192.png', build: () => png(192) },
   { file: 'icon-512.png', build: () => png(512) },
