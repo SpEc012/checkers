@@ -1,19 +1,337 @@
-import {initial} from './engine.mjs';
-export const gameNames={checkers:'Checkers',connect4:'Connect Four',draw:'Draw & Guess',puzzle:'Photo Puzzle',memory:'Memory Match',rps:'Rock Paper Scissors'};
-const words=['tulip','sunset','pancakes','penguin','campfire','snowman','rainbow','popcorn','butterfly','pizza','mountain','moon','umbrella','birthday cake','hot chocolate','bicycle','guitar','cactus','lighthouse','teddy bear','airplane','waterfall','strawberry','roller coaster','ice cream','love letter','dinosaur','sandcastle','fireworks','picnic'];
-export function newGame(game='checkers',options={}){if(!Object.hasOwn(gameNames,game))throw new Error('Choose an available game.');if(game==='checkers')return {...initial(),game};const s={game,board:[],turn:options.turn||'rose',winner:null,ply:0,history:[],forced:null};if(game==='connect4')s.board=Array(42).fill(null);if(game==='draw')Object.assign(s,{word:words[Math.floor(Math.random()*words.length)],strokes:[],round:options.round||1,guesses:[],revealed:false});if(game==='puzzle'){const config=puzzleOptions(options),count=config.size**2*(config.cut==='triangles'?2:1),tray=shuffle(Array.from({length:count},(_,i)=>i));Object.assign(s,{board:Array(count).fill(null),tray,photoKey:options.photoKey||null,config,rotations:Array.from({length:count},()=>config.rotate?Math.floor(Math.random()*4):0)})}
-if(game==='memory'){const faces=['🌷','💗','🍓','🧸','🌙','🦋','🍒','🌻'];Object.assign(s,{deck:shuffle([...faces,...faces]),matched:Array(16).fill(null),flipped:[],revealUntil:0,points:{rose:0,cream:0}})}
-if(game==='rps')Object.assign(s,{picks:{rose:null,cream:null},round:1,roundResult:null,points:{rose:0,cream:0}});
-return s}
-export function dropHeart(s,column,side){if(s.game!=='connect4'||s.winner||s.turn!==side||!Number.isInteger(column)||column<0||column>6)return null;let row=5;while(row>=0&&s.board[row*7+column])row--;if(row<0)return null;const n=structuredClone(s);n.board[row*7+column]=side;n.ply++;n.last=row*7+column;n.history.push(`Heart in column ${column+1}`);for(const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]){const line=[n.last];for(const sign of [-1,1]){let r=row+dr*sign,c=column+dc*sign;while(r>=0&&r<6&&c>=0&&c<7&&n.board[r*7+c]===side){line.push(r*7+c);r+=dr*sign;c+=dc*sign}}if(line.length>=4){n.winner=side;n.winning=line;break}}if(!n.winner&&n.board.every(Boolean))n.winner='draw';n.turn=side==='rose'?'cream':'rose';return n}
-export function puzzleOptions(o={}){o=o.config||o;return {size:[3,4,6,8].includes(o.size)?o.size:4,cut:o.cut==='triangles'?'triangles':'squares',rotate:o.rotate===true,peek:o.peek!==false}}
-function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-export function placeTile(s,piece,target){if(s.game!=='puzzle'||s.winner||!Number.isInteger(piece)||piece<0||piece>=s.board.length||piece!==target||s.board[target]!==null||(s.rotations?.[piece]||0)!==0)return null;const n=structuredClone(s);n.board[target]=piece;n.ply++;n.history.push('Placed a little piece');if(n.board.every(v=>v!==null))n.winner='together';return n}
-export function puzzleAction(s,body){if(body.action!=='rotate')return placeTile(s,body.piece,body.target);if(s.game!=='puzzle'||s.winner||!s.config?.rotate||!Number.isInteger(body.piece)||body.piece<0||body.piece>=s.board.length||s.board[body.piece]!==null)return null;const n=structuredClone(s);n.rotations[body.piece]=(n.rotations[body.piece]+1)%4;n.ply++;return n}
-export function memoryAction(s,index,side,now=Date.now()){if(s.game!=='memory'||s.winner||s.turn!==side||!Number.isInteger(index)||index<0||index>15||s.matched[index]||s.revealUntil>now)return null;const n=structuredClone(s);if(n.flipped.length===2)n.flipped=[];if(n.flipped.includes(index))return null;n.flipped.push(index);n.ply++;if(n.flipped.length===2){const [a,b]=n.flipped;if(n.deck[a]===n.deck[b]){n.matched[a]=side;n.matched[b]=side;n.points[side]++;n.flipped=[];if(n.matched.every(Boolean))n.winner=n.points.rose===n.points.cream?'draw':n.points.rose>n.points.cream?'rose':'cream'}else{n.revealUntil=now+1400;n.turn=side==='rose'?'cream':'rose'}}return n}
-export function rpsAction(s,body,side){if(s.game!=='rps'||s.winner)return null;const n=structuredClone(s);if(body.action==='next'){if(!s.roundResult)return null;n.picks={rose:null,cream:null};n.roundResult=null;n.round++;n.ply++;return n}if(s.roundResult||s.picks[side]||!['rock','paper','scissors'].includes(body.choice))return null;n.picks[side]=body.choice;n.ply++;if(n.picks.rose&&n.picks.cream){const [a,b]=[n.picks.rose,n.picks.cream];n.roundResult=a===b?'draw':({rock:'scissors',scissors:'paper',paper:'rock'}[a]===b?'rose':'cream');if(n.roundResult!=='draw')n.points[n.roundResult]++;if(n.points.rose>=3||n.points.cream>=3)n.winner=n.roundResult;n.history.push('Round '+n.round+': '+(n.roundResult==='draw'?'tie':n.roundResult+' wins'))}return n}
-export function drawingAction(s,action,body,side){if(s.game!=='draw')throw new Error('Open Draw & Guess first.');const n=structuredClone(s);if(action==='next'){if(!s.revealed)throw new Error('Finish this round first.');return newGame('draw',{turn:s.turn==='rose'?'cream':'rose',round:s.round+1})}if(s.revealed)throw new Error('This round is finished.');if(action==='guess'){if(side===s.turn)throw new Error('The other player gets to guess.');let text=String(body.text||'').trim().slice(0,60);if(!text)throw new Error('Type a guess.');n.guesses.push({side,text});n.guesses=n.guesses.slice(-30);const normalize=t=>t.toLowerCase().replace(/[^a-z0-9]/g,'');if(normalize(text)===normalize(s.word)){n.revealed=true;n.winner='together'}n.ply++;return n}if(side!==s.turn)throw new Error('Only the artist can draw.');if(action==='reveal'){n.revealed=true;n.winner='draw';return n}if(action==='clear'){n.strokes=[];n.ply++;return n}if(action==='undo'){n.strokes.pop();n.ply++;return n}if(action==='stroke'){if(n.strokes.length>=160)throw new Error('The sketch is full. Undo or clear to keep drawing.');const points=body.points;if(!Array.isArray(points)||points.length<1||points.length>80||points.some(p=>!Array.isArray(p)||p.length!==2||p.some(v=>!Number.isFinite(v)||v<0||v>1)))throw new Error('Invalid drawing stroke.');if(!/^#[a-f0-9]{6}$/i.test(body.color)||![3,7,14].includes(body.width))throw new Error('Invalid brush.');n.strokes.push({points,color:body.color,width:body.width});n.ply++;return n}throw new Error('Unknown drawing action.')}
-export function publicGame(s,side,now=Date.now()){const n=structuredClone(s);if(n.game==='draw'&&n.turn!==side&&!n.revealed){n.word=null;n.letters=s.word.replace(/[^ ]/g,'_')}
-if(n.game==='memory'){const shown=n.flipped.length===2&&n.revealUntil<=now?[]:n.flipped;n.deck=s.deck.map((v,i)=>n.matched[i]||shown.includes(i)?v:null);n.flipped=shown}
-if(n.game==='rps'&&!n.roundResult){const other=side==='rose'?'cream':'rose';n.opponentPicked=!!n.picks[other];n.picks[other]=null}
-return n}
+// The five games that are not checkers, plus the redaction rules that keep
+// secrets secret.
+//
+// Like engine.mjs these are pure functions shared with the Worker: each one
+// returns a new state or null/throws when the move is not allowed, so the
+// server can validate exactly what the browser just tried to do.
+
+import { initial } from './engine.mjs';
+
+export const gameNames = {
+  checkers: 'Checkers',
+  connect4: 'Connect Four',
+  draw: 'Draw & Guess',
+  puzzle: 'Photo Puzzle',
+  memory: 'Memory Match',
+  rps: 'Rock Paper Scissors',
+};
+
+const PROMPTS = [
+  'tulip', 'sunset', 'pancakes', 'penguin', 'campfire', 'snowman', 'rainbow', 'popcorn',
+  'butterfly', 'pizza', 'mountain', 'moon', 'umbrella', 'birthday cake', 'hot chocolate',
+  'bicycle', 'guitar', 'cactus', 'lighthouse', 'teddy bear', 'airplane', 'waterfall',
+  'strawberry', 'roller coaster', 'ice cream', 'love letter', 'dinosaur', 'sandcastle',
+  'fireworks', 'picnic',
+];
+
+const MEMORY_FACES = ['🌷', '💗', '🍓', '🧸', '🌙', '🦋', '🍒', '🌻'];
+const THROWS = ['rock', 'paper', 'scissors'];
+const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+const MISMATCH_REVEAL = 1400; // ms two unmatched cards stay face up
+const MAX_STROKES = 160;
+const MAX_STROKE_POINTS = 80;
+
+const other = side => (side === 'rose' ? 'cream' : 'rose');
+
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+/** Normalise whatever the client sent into a valid puzzle configuration. */
+export function puzzleOptions(options = {}) {
+  const config = options.config || options;
+  return {
+    size: [3, 4, 6, 8].includes(config.size) ? config.size : 4,
+    cut: config.cut === 'triangles' ? 'triangles' : 'squares',
+    rotate: config.rotate === true,
+    peek: config.peek !== false,
+  };
+}
+
+/** Start any game. Checkers keeps its own richer shape. */
+export function newGame(game = 'checkers', options = {}) {
+  if (!Object.hasOwn(gameNames, game)) throw new Error('Choose an available game.');
+  if (game === 'checkers') return { ...initial(), game };
+
+  const state = {
+    game,
+    board: [],
+    turn: options.turn || 'rose',
+    winner: null,
+    ply: 0,
+    history: [],
+    forced: null,
+  };
+
+  if (game === 'connect4') state.board = Array(42).fill(null);
+
+  if (game === 'draw') {
+    Object.assign(state, {
+      word: PROMPTS[Math.floor(Math.random() * PROMPTS.length)],
+      strokes: [],
+      round: options.round || 1,
+      guesses: [],
+      revealed: false,
+    });
+  }
+
+  if (game === 'puzzle') {
+    const config = puzzleOptions(options);
+    const count = config.size ** 2 * (config.cut === 'triangles' ? 2 : 1);
+    Object.assign(state, {
+      board: Array(count).fill(null),
+      tray: shuffle(Array.from({ length: count }, (_, i) => i)),
+      photoKey: options.photoKey || null,
+      config,
+      rotations: Array.from({ length: count }, () => (config.rotate ? Math.floor(Math.random() * 4) : 0)),
+    });
+  }
+
+  if (game === 'memory') {
+    Object.assign(state, {
+      deck: shuffle([...MEMORY_FACES, ...MEMORY_FACES]),
+      matched: Array(16).fill(null),
+      flipped: [],
+      revealUntil: 0,
+      points: { rose: 0, cream: 0 },
+    });
+  }
+
+  if (game === 'rps') {
+    Object.assign(state, {
+      picks: { rose: null, cream: null },
+      round: 1,
+      roundResult: null,
+      points: { rose: 0, cream: 0 },
+    });
+  }
+
+  return state;
+}
+
+/* ------------------------------------------------------------ connect four */
+
+export function dropHeart(state, column, side) {
+  const legal = state.game === 'connect4' && !state.winner && state.turn === side
+    && Number.isInteger(column) && column >= 0 && column <= 6;
+  if (!legal) return null;
+
+  let row = 5;
+  while (row >= 0 && state.board[row * 7 + column]) row--;
+  if (row < 0) return null;
+
+  const next = structuredClone(state);
+  next.board[row * 7 + column] = side;
+  next.ply++;
+  next.last = row * 7 + column;
+  next.history.push(`Heart in column ${column + 1}`);
+
+  for (const [rowStep, columnStep] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+    const line = [next.last];
+    for (const direction of [-1, 1]) {
+      let r = row + rowStep * direction;
+      let c = column + columnStep * direction;
+      while (r >= 0 && r < 6 && c >= 0 && c < 7 && next.board[r * 7 + c] === side) {
+        line.push(r * 7 + c);
+        r += rowStep * direction;
+        c += columnStep * direction;
+      }
+    }
+    if (line.length >= 4) {
+      next.winner = side;
+      next.winning = line;
+      break;
+    }
+  }
+
+  if (!next.winner && next.board.every(Boolean)) next.winner = 'draw';
+  next.turn = other(side);
+  return next;
+}
+
+/* ------------------------------------------------------------ photo puzzle */
+
+/** Drop a tile into its home square. Pieces only fit where they belong. */
+export function placeTile(state, piece, target) {
+  const legal = state.game === 'puzzle' && !state.winner
+    && Number.isInteger(piece) && piece >= 0 && piece < state.board.length
+    && piece === target && state.board[target] === null
+    && (state.rotations?.[piece] || 0) === 0;
+  if (!legal) return null;
+
+  const next = structuredClone(state);
+  next.board[target] = piece;
+  next.ply++;
+  next.history.push('Placed a little piece');
+  if (next.board.every(value => value !== null)) next.winner = 'together';
+  return next;
+}
+
+export function puzzleAction(state, body) {
+  if (body.action !== 'rotate') return placeTile(state, body.piece, body.target);
+
+  const legal = state.game === 'puzzle' && !state.winner && state.config?.rotate
+    && Number.isInteger(body.piece) && body.piece >= 0 && body.piece < state.board.length
+    && state.board[body.piece] === null;
+  if (!legal) return null;
+
+  const next = structuredClone(state);
+  next.rotations[body.piece] = (next.rotations[body.piece] + 1) % 4;
+  next.ply++;
+  return next;
+}
+
+/* ------------------------------------------------------------ memory match */
+
+export function memoryAction(state, index, side, now = Date.now()) {
+  const legal = state.game === 'memory' && !state.winner && state.turn === side
+    && Number.isInteger(index) && index >= 0 && index <= 15
+    && !state.matched[index] && state.revealUntil <= now;
+  if (!legal) return null;
+
+  const next = structuredClone(state);
+  if (next.flipped.length === 2) next.flipped = [];
+  if (next.flipped.includes(index)) return null;
+  next.flipped.push(index);
+  next.ply++;
+
+  if (next.flipped.length === 2) {
+    const [first, second] = next.flipped;
+    if (next.deck[first] === next.deck[second]) {
+      next.matched[first] = side;
+      next.matched[second] = side;
+      next.points[side]++;
+      next.flipped = [];
+      if (next.matched.every(Boolean)) {
+        next.winner = next.points.rose === next.points.cream ? 'draw'
+          : next.points.rose > next.points.cream ? 'rose' : 'cream';
+      }
+    } else {
+      // Leave the mismatch face up for a moment, then hand over the turn.
+      next.revealUntil = now + MISMATCH_REVEAL;
+      next.turn = other(side);
+    }
+  }
+  return next;
+}
+
+/* --------------------------------------------------- rock paper scissors */
+
+export function rpsAction(state, body, side) {
+  if (state.game !== 'rps' || state.winner) return null;
+  const next = structuredClone(state);
+
+  if (body.action === 'next') {
+    if (!state.roundResult) return null;
+    next.picks = { rose: null, cream: null };
+    next.roundResult = null;
+    next.round++;
+    next.ply++;
+    return next;
+  }
+
+  if (state.roundResult || state.picks[side] || !THROWS.includes(body.choice)) return null;
+  next.picks[side] = body.choice;
+  next.ply++;
+
+  if (next.picks.rose && next.picks.cream) {
+    const { rose, cream } = next.picks;
+    next.roundResult = rose === cream ? 'draw' : BEATS[rose] === cream ? 'rose' : 'cream';
+    if (next.roundResult !== 'draw') next.points[next.roundResult]++;
+    if (next.points.rose >= 3 || next.points.cream >= 3) next.winner = next.roundResult;
+    next.history.push(`Round ${next.round}: ${next.roundResult === 'draw' ? 'tie' : `${next.roundResult} wins`}`);
+  }
+  return next;
+}
+
+/* ------------------------------------------------------------ draw & guess */
+
+const normalise = text => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export function drawingAction(state, action, body, side) {
+  if (state.game !== 'draw') throw new Error('Open Draw & Guess first.');
+  const next = structuredClone(state);
+
+  if (action === 'next') {
+    if (!state.revealed) throw new Error('Finish this round first.');
+    return newGame('draw', { turn: other(state.turn), round: state.round + 1 });
+  }
+  if (state.revealed) throw new Error('This round is finished.');
+
+  if (action === 'guess') {
+    if (side === state.turn) throw new Error('The other player gets to guess.');
+    const text = String(body.text || '').trim().slice(0, 60);
+    if (!text) throw new Error('Type a guess.');
+    next.guesses.push({ side, text });
+    next.guesses = next.guesses.slice(-30);
+    if (normalise(text) === normalise(state.word)) {
+      next.revealed = true;
+      next.winner = 'together';
+    }
+    next.ply++;
+    return next;
+  }
+
+  if (side !== state.turn) throw new Error('Only the artist can draw.');
+
+  if (action === 'reveal') {
+    next.revealed = true;
+    next.winner = 'draw';
+    return next;
+  }
+  if (action === 'clear') {
+    next.strokes = [];
+    next.ply++;
+    return next;
+  }
+  if (action === 'undo') {
+    next.strokes.pop();
+    next.ply++;
+    return next;
+  }
+  if (action === 'stroke') {
+    if (next.strokes.length >= MAX_STROKES) throw new Error('The sketch is full. Undo or clear to keep drawing.');
+    const points = body.points;
+    const validPoint = point => Array.isArray(point) && point.length === 2
+      && point.every(value => Number.isFinite(value) && value >= 0 && value <= 1);
+    if (!Array.isArray(points) || points.length < 1 || points.length > MAX_STROKE_POINTS || !points.every(validPoint)) {
+      throw new Error('Invalid drawing stroke.');
+    }
+    if (!/^#[a-f0-9]{6}$/i.test(body.color) || ![3, 7, 14].includes(body.width)) throw new Error('Invalid brush.');
+    next.strokes.push({ points, color: body.color, width: body.width });
+    next.ply++;
+    return next;
+  }
+
+  throw new Error('Unknown drawing action.');
+}
+
+/* --------------------------------------------------------------- redaction */
+
+/** The view of a game one player is allowed to see. */
+export function publicGame(state, side, now = Date.now()) {
+  const view = structuredClone(state);
+
+  if (view.game === 'draw' && view.turn !== side && !view.revealed) {
+    view.word = null;
+    view.letters = state.word.replace(/[^ ]/g, '_');
+  }
+
+  if (view.game === 'memory') {
+    const shown = view.flipped.length === 2 && view.revealUntil <= now ? [] : view.flipped;
+    view.deck = state.deck.map((face, index) => (view.matched[index] || shown.includes(index) ? face : null));
+    view.flipped = shown;
+  }
+
+  if (view.game === 'rps' && !view.roundResult) {
+    const opponent = other(side);
+    view.opponentPicked = !!view.picks[opponent];
+    view.picks[opponent] = null;
+  }
+
+  return view;
+}

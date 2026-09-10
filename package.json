@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node tests/engine.test.mjs && node tests/server.test.mjs && node tests/expansion.test.mjs && node tests/match-effects.test.mjs && node tests/celebration-ui.test.mjs",
+    "dev": "node scripts/dev.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "node tests/engine.test.mjs && node tests/server.test.mjs && node tests/expansion.test.mjs && node tests/match-effects.test.mjs && node tests/celebration-ui.test.mjs && node tests/lovebugs.test.mjs && node tests/icons.test.mjs",
     "db:generate": "drizzle-kit generate",
     "deploy:self": "npm run build && wrangler d1 migrations apply DB --remote --config wrangler.selfhost.json && wrangler deploy --config wrangler.selfhost.json",
     "setup:self": "node scripts/configure-selfhost.mjs"

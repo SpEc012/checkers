@@ -1,3 +1,103 @@
-export function initial(){return {board:Array.from({length:64},(_,i)=>{let r=i>>3,c=i%8;return (r+c)%2&& (r<3||r>4)?{side:r<3?'cream':'rose',king:false}:null}),turn:'rose',forced:null,winner:null,ply:0,quiet:0,history:[]}}
-export function moves(s,only=null){let jumps=[],walks=[];for(let i=0;i<64;i++){let p=s.board[i];if(!p||p.side!==s.turn||(s.forced!==null&&i!==s.forced)||(only!==null&&i!==only))continue;let r=i>>3,c=i%8;for(let dr of p.king?[-1,1]:[p.side==='rose'?-1:1])for(let dc of [-1,1]){let nr=r+dr,nc=c+dc;if(nr<0||nr>7||nc<0||nc>7)continue;let n=nr*8+nc;if(!s.board[n])walks.push({from:i,to:n});else if(s.board[n].side!==p.side){let rr=r+2*dr,cc=c+2*dc;if(rr>=0&&rr<8&&cc>=0&&cc<8&&!s.board[rr*8+cc])jumps.push({from:i,to:rr*8+cc,capture:n})}}}return jumps.length?jumps:s.forced!==null?[]:walks}
-export function apply(s,from,to){if(s.winner)return null;let m=moves(s).find(m=>m.from===from&&m.to===to);if(!m)return null;let n=structuredClone(s),p=n.board[from];n.board[from]=null;n.board[to]=p;if(m.capture!==undefined)n.board[m.capture]=null;let crown=!p.king&&((p.side==='rose'&&to<8)||(p.side==='cream'&&to>=56));if(crown)p.king=true;n.ply++;n.quiet=m.capture!==undefined||crown?0:n.quiet+1;n.history.push(`${String.fromCharCode(97+from%8)}${8-(from>>3)} ${m.capture!==undefined?'×':'→'} ${String.fromCharCode(97+to%8)}${8-(to>>3)}${crown?' ♛':''}`);n.forced=m.capture!==undefined&&!crown?to:null;if(n.forced!==null&&!moves(n).some(x=>x.capture!==undefined))n.forced=null;if(n.forced===null)n.turn=n.turn==='rose'?'cream':'rose';if(!moves(n).length)n.winner=p.side;else if(n.quiet>=80)n.winner='draw';return n}
+// American checkers, shared by the browser and the Worker.
+//
+// The board is a flat 64-entry array, index = row * 8 + column, row 0 at the
+// top. `rose` moves up the board, `cream` moves down. Every function is pure:
+// `apply` returns a brand new state or null when the move is not legal, which
+// is what lets the server re-run exactly what the client just did.
+
+const CROWN_ROW = { rose: index => index < 8, cream: index => index >= 56 };
+const DRAW_AFTER_QUIET_PLIES = 80;
+
+const square = index => `${String.fromCharCode(97 + (index % 8))}${8 - (index >> 3)}`;
+const opponent = side => (side === 'rose' ? 'cream' : 'rose');
+
+/** A fresh board with twelve pieces a side. */
+export function initial() {
+  return {
+    board: Array.from({ length: 64 }, (_, index) => {
+      const row = index >> 3;
+      const column = index % 8;
+      const playable = (row + column) % 2;
+      if (!playable || (row >= 3 && row <= 4)) return null;
+      return { side: row < 3 ? 'cream' : 'rose', king: false };
+    }),
+    turn: 'rose',
+    forced: null, // mid-jump: only this square may move
+    winner: null,
+    ply: 0,
+    quiet: 0, // plies since the last capture or crowning
+    history: [],
+  };
+}
+
+/**
+ * Legal moves for the side to play. Captures are mandatory, so any jump hides
+ * every plain move. Pass `only` to limit the search to one square.
+ */
+export function moves(state, only = null) {
+  const jumps = [];
+  const walks = [];
+
+  for (let index = 0; index < 64; index++) {
+    const piece = state.board[index];
+    if (!piece || piece.side !== state.turn) continue;
+    if (state.forced !== null && index !== state.forced) continue;
+    if (only !== null && index !== only) continue;
+
+    const row = index >> 3;
+    const column = index % 8;
+    const rowSteps = piece.king ? [-1, 1] : [piece.side === 'rose' ? -1 : 1];
+    for (const rowStep of rowSteps) {
+      for (const columnStep of [-1, 1]) {
+        const nextRow = row + rowStep;
+        const nextColumn = column + columnStep;
+        if (nextRow < 0 || nextRow > 7 || nextColumn < 0 || nextColumn > 7) continue;
+
+        const neighbour = nextRow * 8 + nextColumn;
+        if (!state.board[neighbour]) {
+          walks.push({ from: index, to: neighbour });
+        } else if (state.board[neighbour].side !== piece.side) {
+          const landingRow = row + 2 * rowStep;
+          const landingColumn = column + 2 * columnStep;
+          const inside = landingRow >= 0 && landingRow < 8 && landingColumn >= 0 && landingColumn < 8;
+          if (inside && !state.board[landingRow * 8 + landingColumn]) {
+            jumps.push({ from: index, to: landingRow * 8 + landingColumn, capture: neighbour });
+          }
+        }
+      }
+    }
+  }
+
+  if (jumps.length) return jumps;
+  return state.forced !== null ? [] : walks;
+}
+
+/** Play `from` → `to`, or return null when that is not a legal move. */
+export function apply(state, from, to) {
+  if (state.winner) return null;
+  const move = moves(state).find(option => option.from === from && option.to === to);
+  if (!move) return null;
+
+  const next = structuredClone(state);
+  const piece = next.board[from];
+  next.board[from] = null;
+  next.board[to] = piece;
+  if (move.capture !== undefined) next.board[move.capture] = null;
+
+  const crowned = !piece.king && CROWN_ROW[piece.side](to);
+  if (crowned) piece.king = true;
+
+  next.ply++;
+  next.quiet = move.capture !== undefined || crowned ? 0 : next.quiet + 1;
+  next.history.push(`${square(from)} ${move.capture !== undefined ? '×' : '→'} ${square(to)}${crowned ? ' ♛' : ''}`);
+
+  // A jumping piece keeps the turn while more captures remain — but crowning
+  // always ends it.
+  next.forced = move.capture !== undefined && !crowned ? to : null;
+  if (next.forced !== null && !moves(next).some(option => option.capture !== undefined)) next.forced = null;
+  if (next.forced === null) next.turn = opponent(next.turn);
+
+  if (!moves(next).length) next.winner = piece.side;
+  else if (next.quiet >= DRAW_AFTER_QUIET_PLIES) next.winner = 'draw';
+  return next;
+}
