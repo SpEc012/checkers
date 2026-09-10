@@ -1,0 +1,26 @@
+name: Deploy lovebugs.world
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lovebugs-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: lovebugs-production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_D1_ID: ${{ vars.CLOUDFLARE_D1_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run setup:self -- --domain
+      - run: npm run deploy:self
