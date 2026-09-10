@@ -41,6 +41,6 @@ State uses the existing room JSON column; older checkers rooms remain compatible
 `npm test` includes room API authorization plus gameplay, hidden-information and puzzle-configuration checks. Browser layout and device notification behavior have not been tested through a real browser in this update.
 
 ## Lovebugs update
-The existing layout is preserved with a rosier palette and small animated ladybug accents. RPS uses articulated Three.js hands with three synchronized full bounces, an unfolding reveal, and scores withheld during the countdown. Every game has a named win celebration; cooperative results include both names. Motion respects reduced-motion preferences and victory audio respects Sound on/off.
+The existing layout is preserved with its original palette and small stationary ladybugs tucked into corners. RPS uses articulated Three.js hands with three synchronized full bounces, an unfolding reveal, and scores withheld during the countdown. Every game has a named win celebration; cooperative results include both names. Motion respects reduced-motion preferences and victory audio respects Sound on/off.
 
 For **lovebugs.world**, start with [SELF_HOSTING.md](SELF_HOSTING.md). `npm run setup:self` writes the private local deployment configuration; the manual `Deploy lovebugs.world` GitHub Action can publish production independently of the existing ChatGPT test site. Build output is generated from the source, not committed.
