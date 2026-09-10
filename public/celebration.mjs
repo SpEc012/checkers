@@ -6,11 +6,11 @@
 
 import { victoryCopy } from './match-effects.mjs';
 
-export const CONFETTI_PIECES = 36;
+export const CONFETTI_PIECES = 90;
 
 /** Confetti is mostly hearts, with flowers and the occasional lovebug. */
 export function confettiFace(index) {
-  if (index % 9 === 0) return '🐞';
+  if (index % 9 === 0) return '✦';
   if (index % 3 === 0) return '✿';
   return '♥';
 }
@@ -46,7 +46,10 @@ export function createCelebration({ query, reducedMotion = () => false, onShow =
       const chip = doc.createElement('span');
       chip.textContent = confettiFace(i);
       chip.style.setProperty('--x', `${Math.random() * 100}vw`);
-      chip.style.setProperty('--delay', `${Math.random() * 0.5}s`);
+      chip.style.setProperty('--delay', `${-Math.random() * 7}s`);
+      chip.style.setProperty('--duration', `${5 + Math.random() * 5}s`);
+      chip.style.setProperty('--drift', `${Math.random() * 180 - 90}px`);
+      chip.style.setProperty('--size', `${10 + Math.random() * 17}px`);
       chip.style.setProperty('--spin', `${Math.random() * 720 - 360}deg`);
       stage.append(chip);
     }

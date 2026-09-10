@@ -1,5 +1,8 @@
 name: Deploy lovebugs.world
 on:
+  push:
+    branches: [main]
+    paths: [".github/deploy-lovebugs"]
   workflow_dispatch:
     inputs:
       database_id:

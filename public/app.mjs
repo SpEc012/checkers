@@ -109,7 +109,7 @@ function saveAlertPrefs() {
 const audio = createAudio(() => sound);
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // A phone gets a smaller colony than a desktop.
-const lovebugs = createLovebugs({ count: () => (matchMedia('(max-width: 760px)').matches ? 2 : 3) });
+const lovebugs = createLovebugs({ count: () => (matchMedia('(max-width: 760px)').matches ? 1 : 2) });
 
 // A per-tab credential. Reloading the same tab keeps your seat; a new tab is a
 // new player.
@@ -1463,7 +1463,7 @@ async function incomingMessage(message) {
   if (!canSee) {
     unread++;
     paintUnread();
-    lovebugs.flyTo($('.chat'));
+
     if (!document.hidden) {
       toast(`${names[message.side]} sent you ${message.emoji ? 'a little reaction ♡' : 'a love note ♡'}`);
     }
@@ -1561,7 +1561,17 @@ $('#turnSound').onchange = event => {
   turnChime = event.target.checked;
   saveAlertPrefs();
 };
+function setLadybugs(value) {
+  lovebugsWanted = value;
+  writeFlag('arcade-lovebugs', value);
+  lovebugs.setEnabled(value);
+  $('#disableLadybugs').textContent=value?'Hide ladybugs':'Show ladybugs';
+  $('#disableLadybugs').setAttribute('aria-pressed',String(value));
+  $('#lovebugToggle').checked=value;
+}
+$('#disableLadybugs').onclick=()=>setLadybugs(!lovebugsWanted);
 $('#lovebugToggle').onchange = event => {
+  setLadybugs(event.target.checked);
   lovebugsWanted = event.target.checked;
   writeFlag('arcade-lovebugs', lovebugsWanted);
   lovebugs.setEnabled(lovebugsWanted);
@@ -1660,7 +1670,7 @@ const celebration = createCelebration({
   reducedMotion,
   onShow: () => {
     audio.fanfare();
-    lovebugs.celebrate();
+
   },
 });
 
@@ -1738,3 +1748,5 @@ if (document.modelContext?.registerTool) {
     /* Optional integration. */
   }
 }
+
+setLadybugs(lovebugsWanted);

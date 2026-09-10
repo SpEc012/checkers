@@ -13,7 +13,7 @@ const read = file => readFileSync(new URL(`../public/${file}`, import.meta.url))
 
 // --- the vectors match the artwork ------------------------------------------
 assert.equal(read('favicon.svg').toString(), toSVG('app', { title: 'Our Little Arcade' }), 'favicon.svg is stale — run npm run icons');
-assert.equal(read('mask-icon.svg').toString(), toSVG('mask', { title: 'Lovebug' }), 'mask-icon.svg is stale — run npm run icons');
+assert.equal(read('mask-icon.svg').toString(), toSVG('mask', { title: 'Heart' }), 'mask-icon.svg is stale — run npm run icons');
 
 const favicon = read('favicon.svg').toString();
 assert.ok(favicon.startsWith('<svg xmlns='), 'a standalone SVG document');

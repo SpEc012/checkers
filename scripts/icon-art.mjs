@@ -113,20 +113,10 @@ function lovebugShapes() {
  * - `mask`: a flat silhouette for Safari's pinned-tab mask.
  */
 export function iconShapes(flavour = 'app') {
-  if (flavour === 'mask') {
-    return [
-      { type: 'ellipse', cx: 32, cy: 34.5, rx: 19.6, ry: 18.4, fill: '#000000' },
-      { type: 'ellipse', cx: 32, cy: 17.6, rx: 10.9, ry: 10.2, fill: '#000000' },
-      { type: 'roundRect', x: 25.4, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: -20, fill: '#000000' },
-      { type: 'roundRect', x: 36.7, y: 3.6, w: 1.9, h: 9, r: 0.95, rot: 20, fill: '#000000' },
-      { type: 'ellipse', cx: 24.2, cy: 3.8, rx: 2.5, ry: 2.5, fill: '#000000' },
-      { type: 'ellipse', cx: 39.8, cy: 3.8, rx: 2.5, ry: 2.5, fill: '#000000' },
-    ];
-  }
+  if(flavour === 'mask')return [{type:'path',d:heart(32,33,48,44),fill:'#000000'}];
   return [
-    { type: 'roundRect', x: 0, y: 0, w: GRID, h: GRID, r: 15, fill: backdropGradient },
-    { type: 'ellipse', cx: 32, cy: 51.5, rx: 15.5, ry: 3.6, fill: '#8d4a63', opacity: 0.22 },
-    ...lovebugShapes(),
+    {type:'roundRect',x:0,y:0,w:64,h:64,r:15,fill:backdropGradient},
+    {type:'path',d:heart(32,34,46,42),fill:shellGradient}
   ];
 }
 

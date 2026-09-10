@@ -18,6 +18,7 @@ const TYPES = {
   '.json': ['application/json; charset=utf-8', 'text'],
   '.webmanifest': ['application/manifest+json; charset=utf-8', 'text'],
   '.png': ['image/png', 'binary'],
+  '.webp': ['image/webp', 'binary'],
   '.ico': ['image/x-icon', 'binary'],
 };
 

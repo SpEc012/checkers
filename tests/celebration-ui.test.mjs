@@ -80,7 +80,7 @@ const key = { generation: 1, game: 'checkers', outcome: 'rose', ply: 4, round: 0
 assert.equal(celebrationKey(key), celebrationKey({ ...key }), 'the same result keeps the same key');
 assert.notEqual(celebrationKey(key), celebrationKey({ ...key, ply: 5 }));
 assert.notEqual(celebrationKey(key), celebrationKey({ ...key, generation: 2 }), 'a new room celebrates again');
-assert.equal(confettiFace(0), '🐞');
+assert.equal(confettiFace(0), '✦');
 assert.ok(new Set(Array.from({ length: CONFETTI_PIECES }, (_, i) => confettiFace(i))).size === 3);
 
 // --- reduced motion drops the confetti but keeps the words ------------------

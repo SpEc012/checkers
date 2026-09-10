@@ -12,14 +12,14 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export const settings = {
-  edgeMargin: 74, // how far from the viewport edge the bugs like to stay
-  walkSpeed: 27, // px per second — a slow, unhurried crawl
-  flySpeed: 168,
+  edgeMargin: 36, // how far from the viewport edge the bugs like to stay
+  walkSpeed: 9, // px per second — a slow, unhurried crawl
+  flySpeed: 48,
   walkTurn: 2.4, // radians per second
   flyTurn: 3.4,
-  walkDotGap: 11, // px between trail dots
+  walkDotGap: 18, // px between trail dots
   flyDotGap: 26,
-  dotLife: 3400, // ms before a trail dot has faded away
+  dotLife: 2200, // ms before a trail dot has faded away
   shyRadius: 96,
   arriveRadius: 12,
 };
@@ -174,7 +174,7 @@ const random = (min, max) => min + Math.random() * (max - min);
  * @param {HTMLElement} options.mount where the fixed layer is attached.
  * @returns a controller; every method is safe to call at any time.
  */
-export function createLovebugs({ count = 3, mount = document.body } = {}) {
+export function createLovebugs({ count = 2, mount = document.body } = {}) {
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const layer = document.createElement('div');
   layer.className = 'lovebug-layer';
@@ -228,7 +228,7 @@ export function createLovebugs({ count = 3, mount = document.body } = {}) {
       mode: 'idle',
       wait: random(0.4, 2.6) + index * 0.35,
       lift: 0,
-      scale: random(0.82, 1.12),
+      scale: random(0.52, 0.68),
       wobble: random(0, Math.PI * 2),
       sinceDot: 0,
       startled: 0,
@@ -259,7 +259,7 @@ export function createLovebugs({ count = 3, mount = document.body } = {}) {
     trailGroup.append(el('g', { transform: `translate(${bug.x.toFixed(1)} ${bug.y.toFixed(1)})${spin}` }, [dot]));
 
     // Hold the dot for a moment so the path reads, then let it fade away.
-    const peak = flying ? 0.5 : 0.72;
+    const peak = flying ? 0.12 : 0.18;
     const animation = dot.animate(
       [
         { opacity: 0, transform: 'scale(.4)', offset: 0 },
@@ -274,7 +274,7 @@ export function createLovebugs({ count = 3, mount = document.body } = {}) {
     else setTimeout(clear, settings.dotLife);
   }
 
-  function takeOff(bug, { crossing = true } = {}) {
+  function takeOff(bug, { crossing = false } = {}) {
     bug.mode = 'fly';
     bug.target = clampToViewport(pickWaypoint(width, height, { crossing }), width, height);
   }
@@ -286,7 +286,7 @@ export function createLovebugs({ count = 3, mount = document.body } = {}) {
 
   function rest(bug) {
     bug.mode = 'idle';
-    bug.wait = random(1.4, 5.5);
+    bug.wait = random(4, 12);
   }
 
   function shy(bug) {
@@ -309,7 +309,7 @@ export function createLovebugs({ count = 3, mount = document.body } = {}) {
 
     if (bug.mode === 'idle') {
       bug.wait -= dt;
-      if (bug.wait <= 0) (Math.random() < 0.34 || party > 0 ? takeOff : walk)(bug);
+      if (bug.wait <= 0) (Math.random() < 0.08 || party > 0 ? takeOff : walk)(bug);
       return;
     }
 

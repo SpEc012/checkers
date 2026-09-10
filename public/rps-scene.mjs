@@ -1,146 +1,29 @@
-// The two 3D hands behind Rock Paper Scissors.
-//
-// Every finger is three stacked joints, so one `blend` value can unfold a fist
-// into paper or scissors. The scene is loaded on demand — Three.js is far too
-// big to ship with the rest of the arcade.
-
+// Smooth articulated hands with overlapping joints rather than separated beads.
 import * as THREE from 'three';
-import { throwFrame } from './match-effects.mjs';
-
-const SKIN = { rose: 0xf18ba4, cream: 0xf4dbb7 };
-const FINGER_LENGTHS = [0.35, 0.41, 0.38, 0.29];
-
-/**
- * @param {HTMLElement} container the arena element
- * @param {HTMLElement} label the caption under the hands
- * @returns {{update: (snapshot: object) => void}}
- */
-export function createArena(container, label) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
-  container.prepend(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 50);
-  camera.position.set(0, 1, 12);
-  camera.lookAt(0, 0.3, 0);
-
-  scene.add(new THREE.HemisphereLight(0xffeff7, 0x564060, 3));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 4);
-  keyLight.position.set(-3, 5, 7);
-  scene.add(keyLight);
-
-  const sphere = new THREE.SphereGeometry(1, 20, 14);
-  const hands = [];
-
-  /** Build one hand: palm, cuff, four jointed fingers and a thumb. */
-  function buildHand(color, x, mirror) {
-    const root = new THREE.Group();
-    const skin = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 0.05 });
-    root.position.set(x, -0.25, 0);
-    root.rotation.z = mirror * -0.18;
-    scene.add(root);
-
-    const ellipsoid = (parent, sx, sy, sz, px, py, pz, material = skin) => {
-      const mesh = new THREE.Mesh(sphere, material);
-      mesh.scale.set(sx, sy, sz);
-      mesh.position.set(px, py, pz);
-      parent.add(mesh);
-      return mesh;
-    };
-
-    ellipsoid(root, 0.68, 0.77, 0.3, 0, 0, 0); // palm
-    ellipsoid(root, 0.4, 0.48, 0.28, 0, -0.85, 0); // wrist
-    const cuff = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
-    ellipsoid(root, 0.45, 0.19, 0.32, 0, -1.05, 0, cuff);
-
-    const fingers = [];
-    for (let i = 0; i < 4; i++) {
-      const base = new THREE.Group();
-      base.position.set((i - 1.5) * 0.31, 0.56, 0);
-      root.add(base);
-
-      const joints = [];
-      const length = FINGER_LENGTHS[i];
-      let parent = base;
-      for (let segment = 0; segment < 3; segment++) {
-        const joint = new THREE.Group();
-        if (segment) joint.position.y = length;
-        parent.add(joint);
-        ellipsoid(joint, 0.16, length * 0.62, 0.16, 0, length * 0.45, 0);
-        joints.push(joint);
-        parent = joint;
-      }
-      fingers.push({ base, joints });
-    }
-
-    const thumb = new THREE.Group();
-    thumb.position.set(-0.57, -0.1, 0.1);
-    thumb.rotation.z = 0.75;
-    root.add(thumb);
-    ellipsoid(thumb, 0.23, 0.43, 0.2, 0, 0.25, 0);
-
-    hands.push({ root, fingers, thumb, x });
-  }
-
-  buildHand(SKIN.rose, -1.55, -1);
-  buildHand(SKIN.cream, 1.55, 1);
-
-  let key = '';
-  let start = 0;
-  let picks = null;
-  let revealed = false;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-
-  const resize = new ResizeObserver(() => {
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    if (!width || !height) return;
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  });
-  resize.observe(container);
-
-  /** Curl or extend the fingers for a choice, `blend` 0 (fist) → 1 (shape). */
-  function pose(hand, choice, blend) {
-    hand.fingers.forEach(({ base, joints }, index) => {
-      const extended = choice === 'paper' || (choice === 'scissors' && index < 2);
-      const bend = extended ? 0 : 1.5;
-      for (const joint of joints) joint.rotation.x = 1.5 + (bend - 1.5) * blend;
-      base.rotation.z = choice === 'scissors' && index < 2
-        ? (index === 0 ? 0.18 : -0.18) * blend
-        : choice === 'paper' ? (1.5 - index) * 0.07 * blend : 0;
-    });
-    hand.thumb.rotation.z = 0.75;
-    hand.thumb.rotation.x = choice === 'paper' ? -0.25 * blend : 1.1;
-  }
-
-  renderer.setAnimationLoop(time => {
-    if (document.hidden || container.getClientRects().length === 0) return;
-    const frame = throwFrame((performance.now() - start) / 1000, reduced.matches);
-
-    hands.forEach((hand, index) => {
-      const side = index === 0 ? 'rose' : 'cream';
-      pose(hand, picks?.[side] || 'rock', revealed ? frame.blend : 0);
-      hand.root.position.y = -0.45 + (revealed ? frame.bounce : reduced.matches ? 0 : Math.sin(time * 0.002) * 0.07);
-      hand.root.rotation.x = revealed ? -frame.tilt : 0;
-      hand.root.position.x = hand.x + (revealed ? (index === 0 ? 1 : -1) * frame.impact * 0.12 : 0);
-    });
-
-    label.textContent = revealed ? frame.word : 'Two hearts. One showdown.';
-    container.dataset.phase = revealed ? (frame.blend === 1 ? 'revealed' : 'throwing') : 'waiting';
-    renderer.render(scene, camera);
-  });
-
-  return {
-    /** Hand the scene a new round; identical snapshots are ignored. */
-    update(snapshot) {
-      if (snapshot.key === key) return;
-      key = snapshot.key;
-      start = snapshot.startAt || 0;
-      revealed = snapshot.revealed;
-      picks = snapshot.picks;
-    },
-  };
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {throwFrame} from './match-effects.mjs';
+export function createArena(container,label){
+ const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;container.prepend(renderer.domElement);
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(33,1,.1,40);camera.position.set(0,1.2,11.8);camera.lookAt(0,.25,0);
+ scene.add(new THREE.HemisphereLight(0xfff5f0,0x796276,2.1));const light=new THREE.DirectionalLight(0xfff9ed,3);light.position.set(-3,5,6);scene.add(light);const fill=new THREE.DirectionalLight(0xffc4d6,1.2);fill.position.set(5,1,2);scene.add(fill);
+ const hands=[],sphere=new THREE.SphereGeometry(1,20,16);
+ function mesh(parent,geometry,material,x=0,y=0,z=0){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);parent.add(m);return m}
+ function ball(parent,r,mat,x,y,z){const m=mesh(parent,sphere,mat,x,y,z);m.scale.setScalar(r);return m}
+ function hand(x,color,mirror){const root=new THREE.Group();root.position.set(x,-.2,0);root.rotation.set(-.1,mirror*.2,mirror*-.12);scene.add(root);const skin=new THREE.MeshStandardMaterial({color,roughness:.64,metalness:0});
+ mesh(root,new RoundedBoxGeometry(1.02,1.05,.4,5,.18),skin,0,0,0);
+ mesh(root,new RoundedBoxGeometry(.55,.72,.36,4,.13),skin,0,-.68,0);
+ const sleeve=new THREE.MeshStandardMaterial({color:mirror<0?0xb84067:0xd2ad91,roughness:.9});mesh(root,new RoundedBoxGeometry(.65,.65,.47,4,.12),sleeve,0,-1.12,-.01);
+ const seam=new THREE.MeshStandardMaterial({color:0xfff5ec,roughness:.85});mesh(root,new RoundedBoxGeometry(.68,.1,.5,3,.04),seam,0,-.85,0);
+ const fingers=[];
+ for(let i=0;i<4;i++){const base=new THREE.Group();base.position.set((i-1.5)*.255,.41,0);root.add(base);const lengths=[.3,.34,.32,.25].map(v=>v);const segments=[lengths[i],lengths[i]*.78,lengths[i]*.66],joints=[];let parent=base;
+ segments.forEach((length,j)=>{const joint=new THREE.Group();if(j)joint.position.y=segments[j-1];parent.add(joint);const radius=.127-j*.012;ball(joint,radius,skin,0,0,0);mesh(joint,new THREE.CylinderGeometry(radius*.92,radius,length,16),skin,0,length/2,0);ball(joint,radius*.94,skin,0,length,0);joints.push(joint);parent=joint});fingers.push({base,joints});}
+ const thumb=new THREE.Group();thumb.position.set(-.48,-.2,.07);thumb.rotation.z=.85;root.add(thumb);ball(thumb,.19,skin,0,.03,0);mesh(thumb,new THREE.CapsuleGeometry(.155,.32,8,16),skin,0,.29,0);
+ hands.push({root,fingers,thumb,x,mirror});}
+ hand(-1.5,0xf0b7ac,-1);hand(1.5,0xf4d2b5,1);
+ let snapshot={revealed:false,picks:null,startAt:0};const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+ const resize=new ResizeObserver(()=>{const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(container);
+ renderer.setAnimationLoop(time=>{if(document.hidden||!container.getClientRects().length)return;const f=throwFrame((performance.now()-snapshot.startAt)/1000,reduced.matches),blend=snapshot.revealed?f.blend:0;
+ hands.forEach((h,index)=>{const choice=snapshot.picks?.[index?'cream':'rose']||'rock';h.fingers.forEach(({base,joints},i)=>{const open=choice==='paper'||choice==='scissors'&&i<2;const bends=open?[0,.08,.05]:[1.35,1.65,1.25];joints.forEach((joint,j)=>joint.rotation.x=[1.35,1.65,1.25][j]+(bends[j]-[1.35,1.65,1.25][j])*blend);base.rotation.z=blend*(choice==='scissors'&&i<2?(i===0?.18:-.18):choice==='paper'?(1.5-i)*.06:0)});h.thumb.rotation.x=1.1-blend*(choice==='paper'?1.25:0);h.thumb.rotation.z=.85+blend*(choice==='paper'?.25:0);h.root.position.y=-.45+(snapshot.revealed?f.bounce:reduced.matches?0:Math.sin(time*.0013)*.035);h.root.rotation.x=-.1-(snapshot.revealed?f.tilt:0);h.root.position.x=h.x+(snapshot.revealed?(index?-1:1)*f.impact*.1:0)});
+ label.textContent=snapshot.revealed?f.word:'Choose your throw';container.dataset.phase=snapshot.revealed?(f.blend===1?'revealed':'throwing'):'waiting';renderer.render(scene,camera)});
+ return {update(next){snapshot=next},destroy(){renderer.setAnimationLoop(null);resize.disconnect();scene.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}});renderer.dispose();renderer.domElement.remove()}};
 }
