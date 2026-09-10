@@ -1,6 +1,11 @@
 name: Deploy lovebugs.world
 on:
   workflow_dispatch:
+    inputs:
+      database_id:
+        description: 'Optional D1 database UUID (overrides saved variable or secret)'
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -13,10 +18,10 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_D1_ID: ${{ vars.CLOUDFLARE_D1_ID }}
+      CLOUDFLARE_D1_ID: ${{ inputs.database_id || vars.CLOUDFLARE_D1_ID || secrets.CLOUDFLARE_D1_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
