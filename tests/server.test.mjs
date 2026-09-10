@@ -59,4 +59,9 @@ assert.equal((await call(route('photo-read'),{},C)).status,403);
 let c4=newGame('connect4');for(const col of [0,1,0,1,0,1,0])c4=dropHeart(c4,col,c4.turn);assert.equal(c4.winner,'rose');assert.equal(dropHeart(c4,2,c4.turn),null);
 let puzzle=newGame('puzzle');assert.equal(placeTile(puzzle,1,0),null);for(let i=0;i<16;i++)puzzle=placeTile(puzzle,i,i);assert.equal(puzzle.winner,'together');
 console.log('Arcade checks passed: agreed switches, Connect Four win, secret prompt privacy, drawing ownership, guesses, alternating rounds and cooperative puzzle completion.');
+await call(route('puzzle-config'),{config:{size:8,cut:'triangles',rotate:true,peek:false}});
+assert.equal((await call(route('puzzle-config'),{accept:true})).status,400);
+r=await call(route('puzzle-config'),{accept:true},B);assert.equal(r.data.state.board.length,128);assert.equal(r.data.state.config.peek,false);
+for(const game of ['memory','dots','rps']){await call(route('switch'),{game});r=await call(route('switch'),{accept:true},B);assert.equal(r.data.state.game,game);if(game==='memory'){assert.ok(r.data.state.deck.every(v=>v===null));assert.equal((await call(route('play'),{index:0,revision:r.data.revision})).status,400);r=await call(route('play'),{index:0,revision:r.data.revision},B);assert.equal(r.status,200);}if(game==='rps'){r=await call(route('play'),{choice:'paper',revision:r.data.revision},B);let opponent=await call(route('sync'),{});assert.equal(opponent.data.state.picks.rose,null);assert.equal(opponent.data.state.opponentPicked,true);r=await call(route('play'),{choice:'rock',revision:r.data.revision});assert.equal(r.data.state.roundResult,'rose');}}
+console.log('Room API checks passed for new games and agreed puzzle configuration.');
 sqlite.close();console.log('Two-player server checks passed: lobby, passwords, seat ownership, illegal turns, stale moves, chat, rematches, offline pause and room closure.');

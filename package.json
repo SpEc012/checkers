@@ -1,1 +1,15 @@
-{"name":"across-the-board","version":"2.0.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node tests/engine.test.mjs && node tests/server.test.mjs","db:generate":"drizzle-kit generate"},"devDependencies":{"drizzle-kit":"0.31.4","drizzle-orm":"0.44.5"}}
+{
+  "name": "across-the-board",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node tests/engine.test.mjs && node tests/server.test.mjs && node tests/expansion.test.mjs",
+    "db:generate": "drizzle-kit generate"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.4",
+    "drizzle-orm": "0.44.5"
+  }
+}

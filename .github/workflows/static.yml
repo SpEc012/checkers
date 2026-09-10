@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p pages
           cat > pages/index.html <<'HTML'
-          <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Our Little Arcade</title><body style="font-family:system-ui;background:#fff5f3;color:#562d3a;text-align:center;padding:15vh 24px"><h1>Our Little Arcade ♡</h1><p>Checkers, Connect Four, Draw &amp; Guess, and Photo Puzzle.</p><a href="https://across-the-board-dylan-audrey.spec0ntop.chatgpt.site">Play together →</a></body></html>
+          <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Our Little Arcade</title><body style="font-family:system-ui;background:#fff5f3;color:#562d3a;text-align:center;padding:15vh 24px"><h1>Our Little Arcade ♡</h1><p>Seven games, shared rooms, love notes, and a little friendly rivalry.</p><a href="https://across-the-board-dylan-audrey.spec0ntop.chatgpt.site">Play together →</a></body></html>
           HTML
       - name: Setup Pages
         uses: actions/configure-pages@v5
