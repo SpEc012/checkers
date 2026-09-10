@@ -1,6 +1,11 @@
 name: Deploy lovebugs.world
 on:
   workflow_dispatch:
+    inputs:
+      attach_domain:
+        description: Attach lovebugs.world (turn off for the workers.dev address while DNS is still pending)
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -13,14 +18,35 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_D1_ID: ${{ vars.CLOUDFLARE_D1_ID }}
+      # Normally a repository or environment variable; a secret also works.
+      CLOUDFLARE_D1_ID: ${{ vars.CLOUDFLARE_D1_ID || secrets.CLOUDFLARE_D1_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Fail in seconds with one clear message rather than part way through a
+      # deploy, which is what an empty CLOUDFLARE_D1_ID used to do.
+      - name: Check the deployment settings are in place
+        run: |
+          missing=()
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=("secret CLOUDFLARE_API_TOKEN")
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing+=("secret CLOUDFLARE_ACCOUNT_ID")
+          [ -n "$CLOUDFLARE_D1_ID" ] || missing+=("variable CLOUDFLARE_D1_ID")
+          if [ ${#missing[@]} -ne 0 ]; then
+            printf 'Missing deployment settings:\n'
+            printf '  - %s\n' "${missing[@]}"
+            printf '\nAdd them in GitHub under Settings -> Secrets and variables -> Actions,\n'
+            printf 'either on the repository or on the lovebugs-production environment.\n'
+            printf 'CLOUDFLARE_D1_ID is the UUID of your D1 database:\n'
+            printf '  npx wrangler d1 list        (or npx wrangler d1 create lovebugs-rooms)\n'
+            echo "::error::Missing deployment settings: ${missing[*]}"
+            exit 1
+          fi
+          echo "All three deployment settings are present."
+
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run setup:self -- --domain
+      - run: npm run setup:self -- ${{ inputs.attach_domain && '--domain' || '' }}
       - run: npm run deploy:self

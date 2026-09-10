@@ -100,7 +100,9 @@ In **GitHub → SpEc012/checkers → Settings → Secrets and variables → Acti
 | Secret | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 | Variable | `CLOUDFLARE_D1_ID` | Your lovebugs-rooms database UUID |
 
-Go to **Actions → Deploy lovebugs.world → Run workflow**, select `main`, then run. It installs dependencies, runs the game tests, generates your domain configuration, applies migrations, and deploys. A red workflow means deployment needs attention; read the failed step before retrying. The workflow uses environment `lovebugs-production`, where you can optionally configure GitHub's deployment controls.
+`CLOUDFLARE_D1_ID` is a **variable**, not a secret — add it under the Variables tab. A secret of the same name also works if you prefer. It is the UUID printed when you created the database; `npx wrangler d1 list` prints it again.
+
+Go to **Actions → Deploy lovebugs.world → Run workflow**, select `main`, then run. Leave **Attach lovebugs.world** on once DNS is active; turn it off to deploy to the workers.dev address first. The run checks your three settings before doing anything else, then installs dependencies, runs the game tests, generates your domain configuration, applies migrations, and deploys. A red workflow means deployment needs attention; read the failed step before retrying. The workflow uses environment `lovebugs-production`, where you can optionally configure GitHub's deployment controls.
 
 You can also update from your computer:
 
@@ -130,6 +132,9 @@ Your computer's existing `wrangler.selfhost.json` is retained. Neither method mo
 | Online rooms unavailable | `DB` binding points to the correct database; migrations completed |
 | Photo uploads unavailable | R2 is enabled and binding `BUCKET` points to lovebugs-photos |
 | Deployment says unauthorized | Re-run `npx wrangler login` locally, or check the GitHub token scope and expiry |
+| Workflow stops at "Check the deployment settings" | One of the three values is missing. The failed step names which; add it under Settings → Secrets and variables → Actions |
+| Workflow stops at `npm run setup:self` with "No database id" | `CLOUDFLARE_D1_ID` is empty. Add it as a repository **variable** (not only as a secret name you never filled in), using the UUID from `npx wrangler d1 list` |
+| `wrangler deploy` cannot find the database or bucket | Create them first: `npx wrangler d1 create lovebugs-rooms` and `npx wrangler r2 bucket create lovebugs-photos`, in the same account the token belongs to |
 | Config already exists | Keep it, edit it, or intentionally regenerate using `--overwrite` |
 | Partner cannot find room | Both players must use lovebugs.world and the host must remain connected |
 | Notifications are missing | Enable them on this domain, interact to unlock sound, and keep the page open |
