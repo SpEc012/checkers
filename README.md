@@ -19,3 +19,12 @@ The active lobby and authoritative online game require the Worker and D1 backend
 
 ## Verification
 Rules tests cover initial play, invalid moves, mandatory captures, chained jumps, kings, crowning, and wins. API tests cover the room list, password checks, two-player seat limits, wrong-side rejection, stale requests, chat, agreed rematches, reconnect state, offline pause, and closure. Browser visual and real-device end-to-end testing has not been performed in this update.
+
+## Our Little Arcade (version 3)
+Four games share the same online room, chat and player seats. Choose a game before entering local or online mode, or use the in-room game bar. Once both players have joined, game switches require the other player's acceptance.
+
+- **Connect Four:** server-checked turns, gravity, full-column rejection, four-in-a-row wins and draws.
+- **Draw & Guess:** secret prompts sent only to the artist until the round ends, touch/mouse sketching, brush sizes and colors, undo/clear, guesses and alternating artist rounds. Shared-device play offers a hide-prompt button. Sketch strokes sync when the artist lifts their pointer.
+- **Photo Puzzle:** a cooperative 16-tile square-cut picture puzzle. Tap or drag tiles to matching positions. Upload a JPEG/PNG/WebP; the browser crops it to a square and resizes it to 640px. Online images are stored in R2 and served only to room participants. Replacing a photo, switching away, or explicitly ending the room deletes its current image. Inactive-room expiry restricts access but does not physically delete abandoned uploads. Local photos remain in browser memory. Numbered practice tiles work without a photo.
+
+State uses the existing room JSON column; older checkers rooms remain compatible. `BUCKET` is the logical R2 binding. New tests cover cross-game agreement, secret-word redaction, drawing ownership, alternating rounds and puzzle completion. Browser visual/end-to-end testing has not been performed.

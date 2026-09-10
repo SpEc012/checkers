@@ -31,13 +31,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Prepare arcade entry page
+        run: |
+          mkdir -p pages
+          cat > pages/index.html <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Our Little Arcade</title><body style="font-family:system-ui;background:#fff5f3;color:#562d3a;text-align:center;padding:15vh 24px"><h1>Our Little Arcade ♡</h1><p>Checkers, Connect Four, Draw &amp; Guess, and Photo Puzzle.</p><a href="https://across-the-board-dylan-audrey.spec0ntop.chatgpt.site">Play together →</a></body></html>
+          HTML
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
-          path: '.'
+          path: pages
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
