@@ -19,6 +19,7 @@
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/tic-tac-toe.css">
 </head>
 
 <body>
@@ -47,6 +48,9 @@
       </button>
       <button data-pick="connect4">
         <span aria-hidden="true">♥</span><b>Connect Four</b><small>Four hearts in a row</small>
+      </button>
+      <button data-pick="tictactoe">
+        <span aria-hidden="true">♡ ✿</span><b>Tic Tac Toe</b><small>Hearts, daisies &amp; friendly rivalry</small>
       </button>
       <button data-pick="draw">
         <span aria-hidden="true">✎</span><b>Draw &amp; Guess</b><small>Bad drawings. Good company.</small>
@@ -143,6 +147,7 @@
 
       <nav class="game-switcher" aria-label="Switch game">
         <button data-switch="checkers">♛ Checkers</button>
+        <button data-switch="tictactoe">♡ Tic Tac Toe</button>
         <button data-switch="connect4">♥ Connect Four</button>
         <button data-switch="draw">✎ Draw &amp; Guess</button>
         <button data-switch="puzzle">▦ Photo Puzzle</button>
@@ -184,6 +189,18 @@
 
       <section id="arcadeSurface" hidden>
         <!-- Connect Four -->
+        <section id="tttSurface" class="ttt-surface" hidden aria-label="Tic Tac Toe">
+          <p class="eyebrow">LOVE IN A ROW</p>
+          <h2>A heart. A flower. <em>Your move.</em></h2>
+          <div id="tttPlayers" class="ttt-players"></div>
+          <p id="tttStatus" class="ttt-status" role="status" aria-live="polite"></p>
+          <div class="ttt-board-wrap">
+            <div id="tttBoard" class="ttt-board" role="group" aria-label="Three by three board"></div>
+            <svg id="tttLine" class="ttt-line" viewBox="0 0 300 300" aria-hidden="true"></svg>
+          </div>
+          <p class="ttt-note">Three across, down, or diagonally. Make your move ♡</p>
+          <button id="tttAgain" class="primary" hidden>Another round? ↻</button>
+        </section>
         <div id="connectSurface" hidden>
           <div id="connectBoard" class="connect-board" aria-label="Connect Four board"></div>
           <p class="surface-note">Choose a column. Get four hearts in a row—across, down, or diagonally.</p>

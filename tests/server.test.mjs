@@ -222,5 +222,29 @@ for (const game of ['memory', 'rps']) {
 }
 
 console.log('Room API checks passed for new games and agreed puzzle configuration.');
+// Two independent sessions play a full Tic Tac Toe round, then agree a rematch.
+r = await call('/api/rooms', { name: 'Hearts and daisies', playerName: 'Dylan', game: 'tictactoe', side: 'rose' });
+id = r.data.id;
+r = await call(route('join'), { playerName: 'Audrey' }, B);
+assert.equal(r.data.state.game, 'tictactoe');
+assert.equal((await call(route('play'), { index: 0, revision: r.data.revision, side: 'rose' }, B)).status, 400, 'body cannot impersonate the other seat');
+for (const [step, index] of [0, 3, 1, 4, 2].entries()) {
+  const previous = r.data.revision;
+  r = await call(route('play'), { index, revision: previous }, step % 2 ? B : A);
+  assert.equal(r.status, 200);
+  const peer = await call(route('sync'), {}, step % 2 ? A : B);
+  assert.deepEqual(peer.data.state.board, r.data.state.board);
+  assert.equal((await call(route('play'), { index: 8, revision: previous }, A)).status, 409);
+}
+assert.equal(r.data.state.winner, 'rose');
+assert.equal(r.data.score.rose, 1);
+assert.equal((await call(route('play'), { index: 8, revision: r.data.revision }, B)).status, 400);
+await call(route('rematch'), {});
+r = await call(route('rematch'), { accept: true }, B);
+assert.equal(r.status, 200);
+assert.equal(r.data.state.game, 'tictactoe');
+assert.ok(r.data.state.board.every(cell => cell === null));
+assert.equal(r.data.state.winner, null);
+console.log('Tic Tac Toe online: synchronized seats, impersonation rejection, stale moves, win scoring and rematch passed.');
 sqlite.close();
 console.log('Two-player server checks passed: lobby, passwords, seat ownership, illegal turns, stale moves, chat, rematches, offline pause and room closure.');

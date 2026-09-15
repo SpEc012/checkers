@@ -1,6 +1,6 @@
 // Our Little Arcade — the browser app.
 //
-// One page runs six games, two ways to play (shared device or an online room)
+// One page runs seven games, two ways to play (shared device or an online room)
 // and a chat panel. The rules live in engine.mjs and arcade.mjs and are shared
 // with the Worker, so this file only has to be about state, the DOM and talking
 // to the server.
@@ -16,9 +16,10 @@
 import { THROW_DURATION } from './match-effects.mjs';
 import { initial, moves, apply } from './engine.mjs';
 import {
-  newGame, dropHeart, drawingAction, gameNames,
+  newGame, dropHeart, placeMark, drawingAction, gameNames,
   puzzleOptions, puzzleAction, memoryAction, rpsAction, publicGame,
 } from './arcade.mjs';
+import { renderTicTacToe } from './tic-tac-toe.mjs';
 import { createAudio } from './sound.mjs';
 import { celebrationKey, createCelebration } from './celebration.mjs';
 import { createLovebugs, decorate } from './lovebugs.mjs';
@@ -28,7 +29,7 @@ import { createLovebugs, decorate } from './lovebugs.mjs';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => document.querySelectorAll(selector);
 const PAGE_TITLE = 'Our Little Arcade · Dylan & Audrey';
-const SURFACES = { connect4: 'connect', draw: 'draw', puzzle: 'puzzle', memory: 'memory', rps: 'rps' };
+const SURFACES = { tictactoe: 'ttt', connect4: 'connect', draw: 'draw', puzzle: 'puzzle', memory: 'memory', rps: 'rps' };
 
 // Game and room state.
 let state = initial();
@@ -312,6 +313,7 @@ function renderArcade() {
   $('#view').hidden = !checkers;
   $('#gameHeading').textContent = gameNames[game] + (game === 'puzzle' ? ' · a little piece of us.' : ' · with love.');
   $('#gameQuip').textContent = game === 'checkers' ? 'Love you. Still taking your pieces.'
+    : game === 'tictactoe' ? 'Three in a row. Always on your side.'
     : game === 'connect4' ? 'Four little hearts. One very big crush.'
       : game === 'draw' ? 'Your terrible drawings are my favorite.'
         : 'We make a pretty good picture.';
@@ -327,6 +329,7 @@ function renderArcade() {
     : '';
   $('#acceptSwitch').hidden = !!switchRequest && switchRequest.side === room?.side;
 
+  if (game === 'tictactoe') renderTicTacToe({ state, names, canMove: canMove(), side: mode === 'online' ? room?.side : null, onMove: index => play({ index }), onRematch: () => $('#rematch').click() });
   if (game === 'connect4') renderConnectFour();
   if (game === 'draw') renderDrawing();
   if (game === 'puzzle') renderPuzzle();
@@ -839,6 +842,7 @@ $('#sound').onclick = () => {
 };
 
 const RULE_NOTES = {
+  tictactoe: 'Hearts versus daisies. Tap an empty tile on your turn. Three across, down, or diagonally wins. A full board without a line is a draw.',
   connect4: 'Take turns dropping a heart. Four in a row wins.',
   draw: 'The artist sketches a secret prompt. The other player guesses. Take turns after each round.',
   puzzle: 'Work together: drag a tile or tap it, then select its matching square. Correct pieces stay in place.',
@@ -865,6 +869,7 @@ async function play(body) {
     const game = kind();
     let next;
     if (game === 'connect4') next = dropHeart(state, body.column, state.turn);
+    else if (game === 'tictactoe') next = placeMark(state, body.index, state.turn);
     else if (game === 'puzzle') next = puzzleAction(state, body);
     else if (game === 'memory') next = memoryAction(state, body.index, state.turn);
     else if (game === 'rps') next = rpsAction(state, body, state.picks.rose ? 'cream' : 'rose');
@@ -880,6 +885,7 @@ async function play(body) {
       }
     }
     state = next;
+    if (game === 'tictactoe' && !state.winner) audio.chime(false);
     if (body.action !== 'rotate') puzzlePick = null;
     render();
     return true;

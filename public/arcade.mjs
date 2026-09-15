@@ -10,6 +10,7 @@ import { initial } from './engine.mjs';
 export const gameNames = {
   checkers: 'Checkers',
   connect4: 'Connect Four',
+  tictactoe: 'Tic Tac Toe',
   draw: 'Draw & Guess',
   puzzle: 'Photo Puzzle',
   memory: 'Memory Match',
@@ -68,6 +69,7 @@ export function newGame(game = 'checkers', options = {}) {
   };
 
   if (game === 'connect4') state.board = Array(42).fill(null);
+  if (game === 'tictactoe') state.board = Array(9).fill(null);
 
   if (game === 'draw') {
     Object.assign(state, {
@@ -111,6 +113,31 @@ export function newGame(game = 'checkers', options = {}) {
   }
 
   return state;
+}
+
+/* ------------------------------------------------------------- tic tac toe */
+
+export const TIC_TAC_TOE_LINES = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8],
+  [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6],
+];
+
+export function placeMark(state, index, side) {
+  if (state.game !== 'tictactoe' || state.winner || !['rose', 'cream'].includes(side)
+    || state.turn !== side || !Number.isInteger(index) || index < 0 || index > 8
+    || state.board[index] !== null) return null;
+  const next = structuredClone(state);
+  next.board[index] = side;
+  next.last = index;
+  next.ply++;
+  next.history.push(`${side === 'rose' ? 'Heart' : 'Daisy'} · row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}`);
+  const line = TIC_TAC_TOE_LINES.find(cells => cells.every(cell => next.board[cell] === side));
+  if (line) {
+    next.winner = side;
+    next.winning = [...line];
+  } else if (next.board.every(Boolean)) next.winner = 'draw';
+  next.turn = other(side);
+  return next;
 }
 
 /* ------------------------------------------------------------ connect four */

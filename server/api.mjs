@@ -8,7 +8,7 @@
 
 import { apply } from '../public/engine.mjs';
 import {
-  newGame, dropHeart, drawingAction, publicGame, gameNames,
+  newGame, dropHeart, placeMark, drawingAction, publicGame, gameNames,
   puzzleOptions, puzzleAction, memoryAction, rpsAction,
 } from '../public/arcade.mjs';
 
@@ -324,6 +324,7 @@ export async function api(request, env) {
       let next = null;
       try {
         if (state.game === 'connect4') next = dropHeart(state, body.column, side);
+        else if (state.game === 'tictactoe') next = placeMark(state, body.index, side);
         else if (state.game === 'puzzle') next = puzzleAction(state, body);
         else if (state.game === 'memory') next = memoryAction(state, body.index, side, now);
         else if (state.game === 'rps') next = rpsAction(state, body, side);
