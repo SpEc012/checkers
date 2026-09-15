@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { api } from '../server/api.mjs';
 import { moves } from '../public/engine.mjs';
-import { newGame, dropHeart, placeTile } from '../public/arcade.mjs';
+import { newGame, dropHeart, placeTile, RACE } from '../public/arcade.mjs';
 
 const sqlite = new DatabaseSync(':memory:');
 sqlite.exec(readFileSync('drizzle/0000_famous_selene.sql', 'utf8'));
@@ -246,5 +246,113 @@ assert.equal(r.data.state.game, 'tictactoe');
 assert.ok(r.data.state.board.every(cell => cell === null));
 assert.equal(r.data.state.winner, null);
 console.log('Tic Tac Toe online: synchronized seats, impersonation rejection, stale moves, win scoring and rematch passed.');
+
+/* ------------------------------------------------- two racing ladybugs ----- */
+
+// Racing is the one game both players play at once, so the room has to accept
+// two streams of crawls without either one scrambling the other's lane.
+r = await call('/api/rooms', { name: 'Race night', playerName: 'Dylan', game: 'race', side: 'rose' });
+id = r.data.id;
+r = await call(route('join'), { playerName: 'Audrey' }, B);
+assert.equal(r.data.state.game, 'race');
+assert.equal(r.data.state.phase, 'ready');
+assert.ok(Number.isFinite(r.data.now), 'the room tells a racing browser what time it is');
+
+/** Move a bug up the track, so a test does not have to crawl a real 20 seconds. */
+function placeBugs(lanes) {
+  const row = sqlite.prepare('SELECT state FROM rooms WHERE id=?').get(id);
+  const value = JSON.parse(row.state);
+  Object.assign(value.lane, lanes);
+  sqlite.prepare('UPDATE rooms SET state=? WHERE id=?').run(JSON.stringify(value), id);
+}
+
+// Either seat may choose the garden; both are put back to unready by it.
+r = await call(route('play'), { action: 'track', track: 'moon', revision: r.data.revision }, B);
+assert.equal(r.data.state.track, 'moon');
+assert.equal((await call(route('play'), { action: 'track', track: 'lava', revision: r.data.revision })).status, 400);
+
+// Nothing moves until both seats say so, and crawls before the gun do nothing.
+r = await call(route('play'), { action: 'ready', revision: r.data.revision });
+assert.equal(r.data.state.phase, 'ready', 'one ready is not a race');
+assert.equal(r.data.state.ready.rose, true);
+// A stale revision is fine here: both may press Ready in the same instant.
+r = await call(route('play'), { action: 'ready', revision: 0 }, B);
+assert.equal(r.data.state.phase, 'running');
+const gun = r.data.state.startAt;
+assert.ok(gun > Date.now(), 'ready, set, then crawl');
+
+r = await call(route('play'), { action: 'crawl', taps: [[5000, 1]], revision: r.data.revision });
+assert.equal(r.data.state.lane.rose, 0, 'a crawl from before the countdown is ignored');
+
+// Both bugs crawl at once, neither one waiting for the other's revision.
+const wait = ms => new Promise(resolve => setTimeout(resolve, Math.max(0, ms)));
+await wait(gun + 40 - Date.now());
+// Rose lands one crawl on every beat; cream lands one and squeezes an extra
+// off-beat one in beside it. Long enough for rose's streak — and so the
+// firefly's tempo — to climb.
+for (let round = 0; round < 14; round++) {
+  r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
+  assert.equal(r.status, 200);
+  // Cream never refreshes its revision, and never has to: crawls are its own
+  // lane's business.
+  r = await call(route('play'), { action: 'crawl', taps: [[0, 1], [90, 0]], revision: 0 }, B);
+  assert.equal(r.status, 200, 'a racing crawl does not need a fresh revision');
+  await wait(180);
+}
+assert.ok(r.data.state.lane.rose > 0 && r.data.state.lane.cream > 0, 'both bugs moved');
+assert.equal(r.data.state.streak.rose, RACE.streakCap, 'an unbroken run fills the streak');
+assert.ok(r.data.state.streak.cream <= 1, 'the extra off-beat crawl keeps costing cream its streak');
+assert.ok(
+  r.data.state.lane.rose > r.data.state.lane.cream * 1.15,
+  `keeping time (${r.data.state.lane.rose.toFixed(0)}) beats tapping more often off the beat (${r.data.state.lane.cream.toFixed(0)})`,
+);
+
+// Now put rose on the ribbon so the finish can be tested in a heartbeat rather
+// than a real twenty seconds.
+placeBugs({ rose: RACE.length - 1 });
+r = await call(route('sync'), {});
+r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
+assert.equal(r.data.state.heatResult, 'rose');
+assert.equal(r.data.state.lane.rose, RACE.length);
+assert.deepEqual(r.data.state.points, { rose: 1, cream: 0 });
+assert.equal(r.data.score.rose, 0, 'a heat is not a match');
+
+// A crawl already in flight when rose crossed still counts — a photo finish
+// must not be lost to the network — but once that window closes, so does the
+// heat.
+assert.equal((await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: 0 }, B)).status, 200);
+await wait(RACE.tieMs * 2 + 40);
+assert.equal((await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: 0 }, B)).status, 400);
+
+r = await call(route('sync'), {});
+const peer = await call(route('sync'), {}, B);
+assert.deepEqual(peer.data.state.lane, r.data.state.lane, 'both screens agree on the finish');
+
+// Restarting a heat is refused while your person is plainly still there.
+assert.equal((await call(route('play'), { action: 'abandon', revision: r.data.revision })).status, 409);
+
+// Heat two: hand it to rose to take the match, and check the running score.
+r = await call(route('play'), { action: 'ready', revision: r.data.revision });
+r = await call(route('play'), { action: 'ready', revision: r.data.revision }, B);
+assert.equal(r.data.state.heat, 2);
+assert.equal(r.data.state.lane.rose, 0, 'the second heat starts at the gate');
+await wait(r.data.state.startAt + 40 - Date.now());
+assert.equal((await call(route('play'), { action: 'lapse', revision: r.data.revision })).status, 400,
+  'a heat cannot be called early');
+placeBugs({ rose: RACE.length - 1 });
+r = await call(route('sync'), {});
+r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
+assert.equal(r.data.state.winner, 'rose');
+assert.equal(r.data.score.rose, 1, 'the match counts towards the running score');
+assert.equal((await call(route('play'), { action: 'ready', revision: r.data.revision })).status, 400, 'use a rematch');
+
+await call(route('rematch'), {});
+r = await call(route('rematch'), { accept: true }, B);
+assert.equal(r.data.state.game, 'race');
+assert.equal(r.data.state.heat, 1);
+assert.deepEqual(r.data.state.points, { rose: 0, cream: 0 });
+assert.equal(r.data.state.track, 'moon', 'a rematch keeps the garden you agreed on');
+console.log('Ladybug Race online: server-held time, the ready gate, agreed tracks, simultaneous revision-free crawls, own-lane-only movement, a decided heat, match scoring and a rematch passed.');
+
 sqlite.close();
 console.log('Two-player server checks passed: lobby, passwords, seat ownership, illegal turns, stale moves, chat, rematches, offline pause and room closure.');

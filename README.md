@@ -15,14 +15,16 @@ The server stores room state, up to 100 chat messages, score, and hashed player 
 | File | What it holds |
 | --- | --- |
 | `public/engine.mjs` | American checkers rules. Pure functions, shared with the server. |
-| `public/arcade.mjs` | The other five games plus the redaction rules for hidden information. |
+| `public/arcade.mjs` | The other seven games plus the redaction rules for hidden information. |
 | `public/app.mjs` | The app: state, rendering, input and talking to the room API. |
+| `public/race.mjs` | The Ladybug Race scene: three gardens, the bugs and the rhythm bar. |
 | `public/lovebugs.mjs` | The ladybugs that wander the page, and the drawing they share. |
 | `public/celebration.mjs` | The victory overlay, kept testable outside a browser. |
 | `public/sound.mjs` | Chimes and the win fanfare, synthesised on demand. |
 | `public/rps-scene.mjs` | The Three.js hands, loaded only when Rock Paper Scissors opens. |
 | `public/match-effects.mjs` | Countdown timing and the words on the victory card. |
 | `public/style.css` | One stylesheet, design tokens first, in numbered sections. |
+| `public/race.css` | The frame around the race garden: boards, rhythm bar, crawl buttons. |
 | `server/api.mjs` | The Worker API: prepared D1 queries and revision-checked updates. |
 | `scripts/icon-art.mjs` | The lovebug mark, described once as shapes. |
 | `scripts/make-icons.mjs` | Renders that mark to `favicon.svg`, the mask icon and the PNG icons. |
@@ -76,5 +78,71 @@ Three bugs on a desktop, two on a phone. They live in one fixed layer that never
 **The house.** Every source file was rewritten to be read: the markup is indented and commented, the stylesheet is one pass over design tokens instead of five layers of overrides, and `app.mjs` is split into numbered sections with sound, celebration and lovebugs lifted into their own modules. Dead rules for a game that no longer exists are gone, unused imports removed, and the build no longer keeps a hand-maintained list of assets. The celebration test now drives the real module through a stand-in document rather than slicing a function out of the source text, and there are new tests for lovebug motion and the icons.
 
 **Design.** Same palette, tidier: a six-card game menu on a three-column grid, per-game tints, consistent focus rings and press states, softer card shadows, chat bubbles with a tail, a pulsing hint marker on legal squares, and a proper fallback font stack for when Google Fonts is unreachable.
+
+## Ladybug Race
+
+Two ladybugs, a winding garden trail and a ribbon at the far end. Tap the big
+button — or press space — to crawl. A rhythm bar runs under the garden with a
+firefly sweeping back and forth through a glow; land a crawl while it is inside
+the glow and your bug surges, and a run of well-timed crawls builds a streak
+worth more than twice a hurried tap. One slip costs half the streak, not all of
+it.
+
+**The firefly speeds up as you earn it.** From a standing start a sweep takes
+640 ms and the glow covers most of the bar — easy to read, easy to land. Every
+well-timed crawl pushes it faster and narrows the glow, until at a full streak
+it is crossing in 400 ms through a target half the size. So the reward for
+finding the beat is more ground *and* a harder rhythm, and an off-beat tap
+halves the streak, slowing the firefly back down until you have it again. Miss
+often enough and it drops all the way back to a gentle crawl. Side by side you
+each get your own firefly, because a shared one would mean a shared tempo
+neither of you earned.
+
+Crawling faster than about ten times a second earns nothing at all, which is
+what keeps a thumb and a keyboard on equal terms: the winning rate is between
+three and five crawls a second, on the beat. Simulated against the real rules, a
+heat takes about 18 seconds played expertly, 20–26 for someone following the
+beat honestly, and about 31 for someone mashing as fast as the game will take
+it — the rhythm is worth roughly a third off your time.
+
+Best of three. Each heat opens with "Ready… set… crawl!", a progress bar and a
+percentage for each bug, and two pips showing heats won. The whole course is
+always on screen, at any width, so neither bug can crawl out of sight.
+
+**Three gardens**, chosen from a picker between heats, plus **Surprise us**,
+which draws a fresh one for every heat. Tulip Trail has warm afternoon sun,
+stepping stones and pink tulips; Creekside Crawl winds a creek under little
+wooden bridges past reeds and pebbles; Moonlit Garden is lavender dusk with
+mushrooms and drifting fireflies. All three use the same lane path, moved down
+the scene for the second bug, so every lane is exactly the same length and every
+garden plays identically. Changing the track puts both players back to unready.
+
+**Side by side**, A crawls the cherry bug and L the vanilla one, or use the two
+large touch buttons. **Online**, both players must press Ready before the
+countdown starts, and each player can only ever move their own bug.
+
+Racing is the one game in the arcade where both players act in the same instant,
+so it does not use the one-request-per-move shape the turn-based boards rely on.
+Crawls are gathered for about a quarter of a second and sent as a batch of
+timestamps; the browser says which of them it judged to be on the beat, and the
+server decides everything that matters — how far that is worth, who crossed the
+ribbon, and who wins the match. It enforces the minimum gap between crawls and
+between boosts, and because the firefly's tempo depends only on the streak the
+server is itself keeping, that boost limit follows the tempo rather than being
+pinned to the slowest one. The fastest possible cheat is therefore no faster
+than a player with perfect timing, at any point on the ramp. Batches carry no
+board revision, because a crawl only ever
+touches its own lane; the revision-guarded write still refuses to sit on top of a
+change it never saw, and a batch that loses that race is simply sent again, so no
+tap is ever lost. The room hands out the server's clock with every snapshot, so
+the countdown a player sees matches the one the finish line is judged against.
+
+Crossings within 70 ms of each other are a photo finish and count for neither
+player, which also means a crawl already in flight when the other bug crossed
+still counts. A heat nobody finishes is called on distance after 75 seconds. If
+a partner drops out mid-heat the room says so and offers to restart the heat,
+keeping the score. Sounds — the countdown, footfalls, boosts and the ribbon —
+all follow the existing Sound on/off setting, and reduced-motion preferences
+turn off the sparkles and the scuttling legs while the race itself plays on.
 
 For **lovebugs.world**, start with [SELF_HOSTING.md](SELF_HOSTING.md). `npm run setup:self` writes the private local deployment configuration; the manual `Deploy lovebugs.world` GitHub Action can publish production independently of the existing ChatGPT test site. Build output is generated from the source, not committed.

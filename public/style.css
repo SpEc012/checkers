@@ -422,6 +422,7 @@ footer > span:last-child {
 .arcade-choices button[data-pick="puzzle"] { --tint: #fbf4f7; }
 .arcade-choices button[data-pick="memory"] { --tint: #fdf1f4; }
 .arcade-choices button[data-pick="rps"] { --tint: #fdf6ea; }
+.arcade-choices button[data-pick="race"] { --tint: #fdf2f5; }
 
 .arcade-choices button.chosen {
   background: linear-gradient(150deg, #6b3049, #4a2033);

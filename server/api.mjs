@@ -9,7 +9,7 @@
 import { apply } from '../public/engine.mjs';
 import {
   newGame, dropHeart, placeMark, drawingAction, publicGame, gameNames,
-  puzzleOptions, puzzleAction, memoryAction, rpsAction,
+  puzzleOptions, puzzleAction, memoryAction, rpsAction, raceAction,
 } from '../public/arcade.mjs';
 
 const LIVE = 45000; // a player is "online" if seen within this window
@@ -54,6 +54,9 @@ function summary(row, token, now) {
   return {
     id: row.id,
     name: row.name,
+    // The server's clock, so a racing browser can draw a countdown that agrees
+    // with the one the finish line is judged against.
+    now,
     side,
     host,
     revision: row.revision,
@@ -318,8 +321,25 @@ export async function api(request, env) {
       }
 
     } else if (action === 'play') {
-      requirePartner();
-      if (body.revision !== row.revision) fail('Your game changed. Try again.', 409);
+      const racing = state.game === 'race';
+      const partnerSeen = isHost ? row.guest_seen : row.host_seen;
+      const partnerOnline = !!row.guest && partnerSeen > now - LIVE;
+
+      // Choosing a track is allowed while you wait alone; restarting a heat is
+      // only for when your person has actually dropped out of it.
+      if (!racing || !['track', 'abandon'].includes(body.action)) requirePartner();
+      if (racing && body.action === 'abandon' && partnerOnline) {
+        fail('Your person is still here — finish this heat together.', 409);
+      }
+
+      // Racing is the one game both players play at the same moment, and every
+      // racing action touches only the sender's own lane or its own readiness.
+      // None of them needs the board revision the turn-based games rely on —
+      // both players may press Ready in the same instant and both must land.
+      // The guarded write below still refuses to sit on top of a change this
+      // request never saw, which is what keeps two lanes from overwriting
+      // each other.
+      if (!racing && body.revision !== row.revision) fail('Your game changed. Try again.', 409);
 
       let next = null;
       try {
@@ -328,6 +348,7 @@ export async function api(request, env) {
         else if (state.game === 'puzzle') next = puzzleAction(state, body);
         else if (state.game === 'memory') next = memoryAction(state, body.index, side, now);
         else if (state.game === 'rps') next = rpsAction(state, body, side);
+        else if (state.game === 'race') next = raceAction(state, body, side, now);
         else if (state.game === 'draw') next = drawingAction(state, body.action, body, side);
       } catch (error) {
         fail(error.message);

@@ -45,7 +45,7 @@ const snapshot = ({ game, outcome, ply = 0, round = 0, throwing = false, matchOv
 });
 
 // --- every game shows its result, once --------------------------------------
-for (const game of ['tictactoe', 'checkers', 'connect4', 'memory', 'puzzle', 'draw', 'rps']) {
+for (const game of ['tictactoe', 'checkers', 'connect4', 'memory', 'puzzle', 'draw', 'rps', 'race']) {
   const outcome = ['puzzle', 'draw'].includes(game) ? 'together' : 'cream';
 
   celebration.update(snapshot({ game, outcome: null }));
@@ -60,7 +60,18 @@ for (const game of ['tictactoe', 'checkers', 'connect4', 'memory', 'puzzle', 'dr
   assert.equal(celebration.update(snapshot({ game, outcome, ply: 10 })), false);
   assert.equal(query('#victory').hidden, true, 'polling must not reopen a dismissed result');
 }
-assert.equal(shown, 7, 'one fanfare per result');
+assert.equal(shown, 8, 'one fanfare per result');
+
+// --- the race names its winner, and calls a dead heat a dead heat -----------
+celebration.update(snapshot({ game: 'race', outcome: null }));
+celebration.update(snapshot({ game: 'race', outcome: 'rose', ply: 0, round: 2, matchOver: true }));
+assert.equal(query('#victoryName').textContent, 'Dylan', 'the actual winner, by name');
+assert.equal(query('#victoryResult').textContent, 'WINS THE RACE!');
+celebration.close();
+celebration.update(snapshot({ game: 'race', outcome: null }));
+celebration.update(snapshot({ game: 'race', outcome: 'draw', ply: 0, round: 5, matchOver: true }));
+assert.equal(query('#victoryResult').textContent, 'Too in sync.');
+assert.ok(query('#victoryNote').textContent.includes('Nose to nose'), 'a tie gets its own line');
 
 // --- rock paper scissors waits for the countdown ----------------------------
 celebration.update(snapshot({ game: 'rps', outcome: null }));
@@ -89,4 +100,4 @@ calm.update(snapshot({ game: 'checkers', outcome: 'rose', ply: 3 }));
 assert.equal(query('#victory').hidden, false);
 assert.equal(query('#victoryConfetti').children.length, 0);
 
-console.log('Celebration checks passed for all seven games, RPS rounds, countdown delay, confetti, reduced motion and polling deduplication.');
+console.log('Celebration checks passed for all eight games, RPS rounds, race winners and dead heats, countdown delay, confetti, reduced motion and polling deduplication.');
