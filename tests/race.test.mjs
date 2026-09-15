@@ -118,6 +118,8 @@ assert.equal(raceAction(lineUp(), { action: 'track', track: 'moon' }, 'rose', T0
   assert.ok(raceBeat(RACE.beatMs / 4).onBeat, 'the middle of the sweep is the sweet spot');
   assert.ok(!raceBeat(0).onBeat && !raceBeat(RACE.beatMs / 2).onBeat, 'the ends are not');
   assert.equal(raceBeat(RACE.beatMs * 2).pass, 4, 'two passes to a beat');
+  assert.equal(raceBeat(RACE.beatMs * 0.25).rising, true, 'the firefly flies out…');
+  assert.equal(raceBeat(RACE.beatMs * 0.75).rising, false, '…and back again');
 
   let inside = 0;
   for (let ms = 0; ms < RACE.beatMs; ms++) if (raceBeat(ms).onBeat) inside++;

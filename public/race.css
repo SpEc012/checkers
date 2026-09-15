@@ -265,7 +265,7 @@
   background: linear-gradient(#fdeef3, #f8e2ea);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  overflow: hidden;
+  --fly: 54px;
 }
 
 /* The marker never leaves the bar, so it runs along a rail inset by its own
@@ -291,20 +291,78 @@
   background: radial-gradient(ellipse at center, #fff0b8 0, #ffd36a 62%, #ffd36a33 88%);
 }
 
+/* The marker itself is just a point on the rail; the firefly hangs off it with
+   its lantern on that exact spot, and its antennae may overhang the bar. */
 .race-beat-mark {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
   left: 0;
-  width: 34px;
-  margin-left: -17px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 38% 34%, #fff5c9 0, #f0a73c 62%, #c9682a 100%);
-  box-shadow: 0 0 14px #f7c46a;
+  width: 0;
+  height: 0;
 }
 
-.race-beat.hit {
-  box-shadow: 0 0 0 3px #f5c46a88;
+.race-fly {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--fly);
+  height: auto;
+  overflow: visible;
+  transform: translate(-50%, -50%);
+}
+
+.race-beat-mark[data-facing="left"] .race-fly {
+  transform: translate(-50%, -50%) scaleX(-1);
+}
+
+.race-fly-wing {
+  fill: url(#race-fly-wing);
+  stroke: #dfaebf;
+  stroke-width: .75;
+  transform-box: fill-box;
+  transform-origin: 96% 62%;
+  animation: race-fly-flap .13s linear infinite alternate;
+}
+
+.race-fly-wing-front {
+  animation-direction: alternate-reverse;
+}
+
+.race-fly-vein {
+  fill: none;
+  stroke: #e8c2cd;
+  stroke-width: .5;
+  opacity: .8;
+  transform-box: fill-box;
+  transform-origin: 100% 40%;
+  animation: race-fly-flap .13s linear infinite alternate;
+}
+
+.race-fly-halo,
+.race-fly-lantern {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: race-fly-breathe 1.7s ease-in-out infinite;
+}
+
+.race-beat.on-beat .race-fly-halo {
+  animation: none;
+  transform: scale(1.35);
+  opacity: 1;
+}
+
+.race-beat.hit .race-fly-halo {
+  transform: scale(1.7);
+}
+
+@keyframes race-fly-flap {
+  from { transform: rotate(-11deg) scaleY(.72); }
+  to { transform: rotate(6deg) scaleY(1); }
+}
+
+@keyframes race-fly-breathe {
+  0%, 100% { transform: scale(.92); opacity: .82; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 
 .race-beat-label {
@@ -396,16 +454,12 @@
 
 @media (max-width: 500px) {
   .race-beat {
-    height: 40px;
+    height: 42px;
+    --fly: 44px;
   }
 
   .race-beat-rail {
-    inset: 5px 18px;
-  }
-
-  .race-beat-mark {
-    width: 28px;
-    margin-left: -14px;
+    inset: 5px 17px;
   }
 
   .race-crawl {
@@ -426,11 +480,11 @@
 @media (prefers-reduced-motion: reduce) {
   .race-spark,
   .race-firefly,
+  .race-fly-wing,
+  .race-fly-vein,
+  .race-fly-halo,
+  .race-fly-lantern,
   .race-callout[data-tone="count"] span {
     animation: none;
-  }
-
-  .race-beat-mark {
-    transition: none;
   }
 }

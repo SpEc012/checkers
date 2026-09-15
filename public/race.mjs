@@ -100,6 +100,75 @@ const reeds = (x, y, scale) => el('g', { transform: `translate(${x} ${y}) scale(
   el('ellipse', { cx: '13', cy: '-28', rx: '2.4', ry: '5', fill: '#a8794f' }),
 ]);
 
+/**
+ * The firefly that flies the rhythm bar. Drawn facing right, with its lantern
+ * sitting exactly on the origin: that lantern is the thing a player aims with,
+ * so it — and not the middle of the drawing — is what marks the beat.
+ */
+function firefly() {
+  const ink = '#4a2b33';
+  const stroke = { stroke: ink, 'stroke-width': '1.3', 'stroke-linecap': 'round', fill: 'none' };
+
+  const glow = (id, stops) => el('radialGradient', { id, cx: '40%', cy: '32%', r: '72%' },
+    stops.map(([offset, color, opacity]) => el('stop', {
+      offset, 'stop-color': color, ...(opacity === undefined ? {} : { 'stop-opacity': opacity }),
+    })));
+
+  return el('svg', { class: 'race-fly', viewBox: '-20 -16 40 32', 'aria-hidden': 'true' }, [
+    el('defs', {}, [
+      glow('race-fly-halo', [['0', '#fff6cf', '.9'], ['0.45', '#ffd36a', '.5'], ['1', '#ffc44d', '0']]),
+      glow('race-fly-lantern', [['0', '#fffdf0'], ['0.48', '#ffdc86'], ['1', '#e9971f']]),
+      el('linearGradient', { id: 'race-fly-wing', x1: '1', y1: '1', x2: '0', y2: '0' }, [
+        el('stop', { offset: '0', 'stop-color': '#ffffff', 'stop-opacity': '.95' }),
+        el('stop', { offset: '1', 'stop-color': '#ffd9e6', 'stop-opacity': '.62' }),
+      ]),
+    ]),
+
+    // Dainty legs, tucked up the way they are in flight.
+    el('path', { d: 'M6.4 2.2Q5 5.8 6.8 6.8M10.2 1.8Q10.2 5 12 5.8', ...stroke, 'stroke-width': '1.15' }),
+
+    // The lantern: a tapered abdomen, fat where it meets the thorax, and the
+    // brightest thing on the bar — it is what a player aims with.
+    el('circle', { class: 'race-fly-halo', cx: '0', cy: '0', r: '14.5', fill: 'url(#race-fly-halo)' }),
+    el('g', { class: 'race-fly-lantern' }, [
+      el('path', {
+        d: 'M8-2.6C8-6.9 4.4-8.3.4-7.9-4.5-7.4-9-4.1-9 .4-9 4.7-4.3 7.7.6 7.5 4.9 7.3 8 5 8 .6Z',
+        fill: 'url(#race-fly-lantern)',
+      }),
+      el('path', { d: 'M-6.2-2.8C-3-5.6 1.6-6.4 5.2-4.4', stroke: '#fffdf2', 'stroke-width': '1.9', 'stroke-linecap': 'round', fill: 'none', opacity: '.8' }),
+      el('path', { d: 'M-7.6 2C-3.8 4.9 2.4 5.3 6.6 2.2', stroke: '#d98a17', 'stroke-width': '1.2', 'stroke-linecap': 'round', fill: 'none', opacity: '.45' }),
+      el('path', { d: 'M-8.2-.6C-4.6 2.2 1.8 2.6 6.9-.4', stroke: '#e8a231', 'stroke-width': '1', 'stroke-linecap': 'round', fill: 'none', opacity: '.35' }),
+    ]),
+
+    // Two swept wings, fluttering over the lantern.
+    el('g', { class: 'race-fly-wings' }, [
+      el('path', {
+        class: 'race-fly-wing race-fly-wing-back',
+        d: 'M5.6-4.4C1.2-14-9.4-13.6-13-7-9.2-2.2-1.8-2.6 5.6-4.4Z',
+      }),
+      el('path', {
+        class: 'race-fly-wing race-fly-wing-front',
+        d: 'M6.2-3.8C3-10.6-5.2-11.4-8.6-5.6-5.6-1.6-.2-1.8 6.2-3.8Z',
+      }),
+      el('path', {
+        class: 'race-fly-vein',
+        d: 'M4.6-4.6C.6-10.4-6-10.8-10-7.2',
+      }),
+    ]),
+
+    // Thorax, head, and a face worth looking at.
+    el('ellipse', { cx: '9.2', cy: '-1.8', rx: '5.1', ry: '4.5', fill: ink }),
+    el('ellipse', { cx: '8.6', cy: '-3.6', rx: '2.9', ry: '1.1', fill: '#ffffff', opacity: '.2', transform: 'rotate(-16 8.6 -3.6)' }),
+    el('circle', { cx: '14.7', cy: '-4.4', r: '3.6', fill: ink }),
+    el('circle', { cx: '16', cy: '-5.2', r: '1.65', fill: '#fffdfb' }),
+    el('circle', { cx: '16.4', cy: '-5.2', r: '.85', fill: ink }),
+    el('ellipse', { cx: '13.5', cy: '-2.3', rx: '1.4', ry: '.85', fill: '#f6819c', opacity: '.6' }),
+    el('path', { d: 'M14.8-7.8Q16.8-11.4 19.1-12.6M12.5-7.6Q12.7-11.2 14.7-13.2', ...stroke, 'stroke-width': '1.2' }),
+    el('circle', { cx: '19.4', cy: '-12.8', r: '1.15', fill: ink }),
+    el('circle', { cx: '15', cy: '-13.4', r: '1.15', fill: ink }),
+  ]);
+}
+
 /** Planks over the creek, laid between the lanes. */
 const bridge = (x, y) => el('g', { transform: `translate(${x} ${y})` }, [
   el('rect', { x: '-26', y: '-7', width: '52', height: '14', rx: '3', fill: '#c9925f' }),
@@ -123,6 +192,11 @@ function defs() {
     el('linearGradient', { id: 'race-creek', x1: '0', y1: '0', x2: '0', y2: '1' }, [
       el('stop', { offset: '0', 'stop-color': '#bfe0e8' }),
       el('stop', { offset: '1', 'stop-color': '#9ec8d8' }),
+    ]),
+    el('radialGradient', { id: 'race-glow', cx: '50%', cy: '50%', r: '50%' }, [
+      el('stop', { offset: '0', 'stop-color': '#fff3bf', 'stop-opacity': '.85' }),
+      el('stop', { offset: '0.4', 'stop-color': '#ffdf8a', 'stop-opacity': '.4' }),
+      el('stop', { offset: '1', 'stop-color': '#ffd36a', 'stop-opacity': '0' }),
     ]),
   ]);
 }
@@ -188,16 +262,16 @@ function garden(track) {
       parts.push(mushroom(x, y, s));
     }
     for (const [x, y, r] of [[250, 234, 12], [560, 240, 10], [840, 232, 13]]) parts.push(stone(x, y, r, '#cfc4e0'));
-    // Fireflies drift on their own, in CSS.
+    // Distant fireflies: a lantern in a soft halo, drifting on their own in CSS.
     const flies = el('g', { class: 'race-fireflies' });
     for (let i = 0; i < 14; i++) {
-      const spark = el('circle', {
-        class: 'race-firefly',
-        cx: 70 + (i * 67) % 880,
-        cy: 60 + ((i * 131) % 330),
-        r: (i % 3) + 2,
-        fill: '#ffeaa0',
-      });
+      const size = (i % 3) + 2;
+      const x = 70 + (i * 67) % 880;
+      const y = 60 + ((i * 131) % 330);
+      const spark = el('g', { class: 'race-firefly' }, [
+        el('circle', { cx: x, cy: y, r: size * 4.5, fill: 'url(#race-glow)' }),
+        el('circle', { cx: x, cy: y, r: size, fill: '#fff6cf' }),
+      ]);
       spark.style.setProperty('--delay', `${-(i * 0.73).toFixed(2)}s`);
       spark.style.setProperty('--drift', `${((i % 5) - 2) * 9}px`);
       flies.append(spark);
@@ -350,6 +424,8 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
   beatBar.setAttribute('aria-hidden', 'true');
   const beatRail = html('div', 'race-beat-rail');
   const beatMark = html('i', 'race-beat-mark');
+  beatMark.dataset.facing = 'right';
+  beatMark.append(firefly());
   beatRail.append(html('i', 'race-beat-band'), beatMark);
   beatBar.append(beatRail);
   const beatLabel = html('p', 'race-beat-label', 'Crawl as the firefly crosses the glow — a run of good timing is worth twice a hurried tap.');
@@ -562,6 +638,7 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
         const elapsed = server - state.startAt;
         const beat = raceBeat(elapsed);
         beatMark.style.left = `${(beat.marker * 100).toFixed(1)}%`;
+        beatMark.dataset.facing = beat.rising ? 'right' : 'left';
         beatBar.classList.toggle('on-beat', beat.onBeat);
         beatBar.classList.toggle('hit', now - flash < 180);
         const left = Math.ceil((state.startAt + RACE.limitMs - server) / 1000);

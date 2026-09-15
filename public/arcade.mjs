@@ -364,6 +364,7 @@ export function raceBeat(elapsed) {
     marker,
     onBeat: Math.abs(marker - 0.5) <= RACE.bandHalf,
     pass: Math.floor(elapsed / (RACE.beatMs / 2)),
+    rising: sweep < 0.5, // which way the firefly is flying
   };
 }
 
