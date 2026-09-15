@@ -8,4 +8,6 @@ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id||'
 const file='wrangler.selfhost.json';if(existsSync(file)&&!args.includes('--overwrite'))throw new Error('Config already exists. Keep it, or pass --overwrite to replace it.');
 const config=JSON.parse(readFileSync('wrangler.example.json','utf8'));config.name='lovebugs';config.d1_databases[0].database_id=id;config.d1_databases[0].database_name='lovebugs-rooms';config.r2_buckets[0].bucket_name='lovebugs-photos';
 if(args.includes('--domain'))config.routes=[{pattern:'lovebugs.world',custom_domain:true},{pattern:'www.lovebugs.world',custom_domain:true}];
+if(process.env.NOTES_EMAIL_FROM)config.vars.NOTES_EMAIL_FROM=process.env.NOTES_EMAIL_FROM;
+if(process.env.NOTES_EMAIL_BINDING==='true')config.send_email=[{name:'EMAIL'}];
 writeFileSync(file,JSON.stringify(config,null,2)+'\n');console.log('Created '+file+'. '+(config.routes?'Includes lovebugs.world and www.lovebugs.world.':'Deploy first on workers.dev; attach your domain after DNS is ready.'));

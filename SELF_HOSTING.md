@@ -140,3 +140,7 @@ The GitHub Pages workflow is only an entry page. Once lovebugs.world works, you 
 ### Tic Tac Toe
 
 Choose **Tic Tac Toe** in the arcade menu, then Local or Online. Hearts and tulips take turns placing a mark; three across, down, or diagonally wins. A full board without a winning line is a draw. Online rooms validate each move and require both players to accept a rematch. Existing rooms can switch to the game by mutual agreement. This game uses the existing D1 room storage and needs no new secrets, migrations, or services.
+
+### Permanent Love Notes
+
+The `/notes` section adds email-code accounts, partner invitations, typed/drawn notes, replay, saved keepsakes, scheduled sending, and Web Push. Configure email and push secrets before expecting sign-in or phone alerts. Follow [LOVE_NOTES_SETUP.md](LOVE_NOTES_SETUP.md) for the exact setup and physical-phone test checklist. Existing games continue to work without accounts.

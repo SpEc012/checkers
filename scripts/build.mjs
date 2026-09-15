@@ -1,7 +1,7 @@
 // Build the deployable Worker.
 //
-// Everything in public/ is embedded in the Worker bundle, the shared rules
-// modules are concatenated with server/api.mjs into a single script, and the
+// Everything in public/ is embedded in the Worker bundle, the server and shared rules
+// modules are bundled into a single script, and the
 // Three.js scene is bundled separately so it stays a lazy import. Assets are
 // discovered from the folder rather than listed here, so adding a file to
 // public/ is all it takes to ship it.
@@ -43,25 +43,21 @@ function collectAssets() {
   return assets;
 }
 
-/** Inline a module: drop its imports and export keywords so it can be concatenated. */
-const inline = file => readFileSync(file, 'utf8')
-  .replace(/^import[\s\S]*?from\s+'[^']+';\n/gm, '')
-  .replace(/^export\s+/gm, '');
-
 const WORKER_RUNTIME = `
 const decode = value => Uint8Array.from(atob(value), character => character.charCodeAt(0));
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.hostname === "www.lovebugs.world" && (request.method === "GET" || request.method === "HEAD")) {
       url.hostname = "lovebugs.world";
       return Response.redirect(url.href, 308);
     }
     const path = url.pathname;
+    if (path.startsWith("/api/notes") || path.startsWith("/api/auth/")) return notesApi(request,env,ctx);
     if (path.startsWith("/api/")) return api(request, env);
 
-    const asset = assets[path === "/" ? "/index.html" : path];
+    const asset = assets[path === "/" ? "/index.html" : (path === "/notes" || path.startsWith("/notes/")) ? "/notes.html" : path];
     if (!asset) return new Response("Not found", { status: 404 });
     return new Response(asset.base64 ? decode(asset.base64) : asset.body, {
       headers: {
@@ -71,6 +67,7 @@ export default {
       },
     });
   },
+  async scheduled(event,env,ctx) { ctx.waitUntil(dispatchNotes(env)); },
 };
 `;
 
@@ -89,13 +86,11 @@ const scene = await build({
 });
 assets[`/${BUNDLED}`] = { body: scene.outputFiles[0].text, type: TYPES['.mjs'][0] };
 
-writeFileSync('dist/server/index.js', [
-  inline('public/engine.mjs'),
-  inline('public/arcade.mjs'),
-  inline('server/api.mjs'),
-  `const assets=${JSON.stringify(assets)};`,
-  WORKER_RUNTIME,
-].join('\n'));
+await build({
+  stdin:{contents:`import {api} from './server/api.mjs';\nimport {notesApi} from './server/notes-api.mjs';\nimport {dispatchNotes} from './server/notes-push.mjs';\nconst assets=${JSON.stringify(assets)};\n${WORKER_RUNTIME}`,resolveDir:process.cwd(),sourcefile:'worker-entry.mjs'},
+  bundle:true,format:'esm',platform:'node',target:'es2022',minify:true,
+  outfile:'dist/server/index.js',external:['cloudflare:*'],
+});
 
 writeFileSync('dist/.openai/hosting.json', JSON.stringify(manifest));
 cpSync('drizzle', 'dist/.openai/drizzle', { recursive: true });

@@ -3,6 +3,30 @@
   "main": "dist/server/index.js",
   "compatibility_date": "2026-09-10",
   "workers_dev": true,
-  "d1_databases": [{"binding":"DB","database_name":"arcade-rooms","database_id":"REPLACE_WITH_DATABASE_ID","migrations_dir":"drizzle"}],
-  "r2_buckets": [{"binding":"BUCKET","bucket_name":"arcade-photos"}]
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "arcade-rooms",
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "arcade-photos"
+    }
+  ],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "vars": {
+    "NOTES_ORIGIN": "https://lovebugs.world"
+  },
+  "keep_vars": true
 }

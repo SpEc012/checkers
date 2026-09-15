@@ -56,7 +56,7 @@ createServer(async (request, response) => {
     return;
   }
 
-  const file = path === '/' ? 'index.html' : path.replace(/^\/+/, '');
+  const file = path === '/notes' ? 'notes.html' : path === '/' ? 'index.html' : path.replace(/^\/+/, '');
   if (file.includes('..')) {
     send(403, 'text/plain', 'Nope.');
     return;

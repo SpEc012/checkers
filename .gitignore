@@ -4,3 +4,7 @@ node_modules/
 dist/
 wrangler.selfhost.json
 .wrangler/
+.notes-secrets.json
+.dev.vars
+.env
+.env.*
