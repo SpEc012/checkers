@@ -95,7 +95,7 @@ await build({
     builder.onResolve({filter:/.*/},args=> {
       if(args.kind==='require-call' && builtinModules.includes(args.path.replace(/^node:/,''))) return {path:args.path.replace(/^node:/,''),namespace:'node-shim'};
     });
-    builder.onLoad({filter:/.*/,namespace:'node-shim'},args=>({contents:`import * as builtin from 'node:${args.path}'; module.exports = builtin;`,loader:'js'}));
+    builder.onLoad({filter:/.*/,namespace:'node-shim'},args=>({contents:`import builtin from 'node:${args.path}'; module.exports = builtin;`,loader:'js'}));
   }}],
   outfile:'dist/server/index.js',external:['cloudflare:*'],
 });
