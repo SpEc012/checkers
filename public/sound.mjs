@@ -61,6 +61,58 @@ export function createAudio(isEnabled) {
       }
     },
 
+    /** One soft footfall. Played for your own crawls, so it stays gentle. */
+    step() {
+      if (!playable()) return;
+      try {
+        tone({ frequency: 190 + Math.random() * 40, at: context.currentTime, type: 'triangle', peak: 0.018, length: 0.05 });
+      } catch {
+        /* ignore */
+      }
+    },
+
+    /** A crawl that landed on the beat, brighter the longer the streak runs. */
+    spark(streak = 0) {
+      if (!playable()) return;
+      try {
+        const root = 620 * (1 + Math.min(streak, 6) * 0.06);
+        tone({ frequency: root, at: context.currentTime, peak: 0.045, length: 0.1 });
+        tone({ frequency: root * 1.5, at: context.currentTime + 0.05, peak: 0.035, length: 0.12 });
+      } catch {
+        /* ignore */
+      }
+    },
+
+    /** "Ready… set… crawl!" — three rising beats, the last one longer. */
+    countdown(beat = 0) {
+      if (!playable()) return;
+      try {
+        const go = beat >= 2;
+        tone({
+          frequency: [392, 494, 659][Math.min(beat, 2)],
+          at: context.currentTime,
+          type: go ? 'triangle' : 'sine',
+          peak: go ? 0.08 : 0.05,
+          length: go ? 0.42 : 0.16,
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+
+    /** Crossing the ribbon. */
+    finish() {
+      unlock();
+      if (!playable()) return;
+      try {
+        [523.25, 659.25, 784].forEach((frequency, index) => {
+          tone({ frequency, at: context.currentTime + index * 0.07, type: 'triangle', peak: 0.06, length: 0.3 });
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+
     /** A little four-note fanfare for a win. */
     fanfare() {
       unlock();

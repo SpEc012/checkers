@@ -75,6 +75,12 @@ export function createCelebration({ query, reducedMotion = () => false, onShow =
       if (game === 'rps' && outcome !== 'draw') {
         copy.result = matchOver ? 'WINS THE MATCH!' : 'WINS THIS THROW!';
       }
+      if (game === 'race') {
+        if (outcome !== 'draw') copy.result = 'WINS THE RACE!';
+        copy.note = outcome === 'draw'
+          ? 'Nose to nose, the whole way to the ribbon.'
+          : 'Six little legs and one very determined heart.';
+      }
       query('#victoryBang').textContent = copy.bang;
       query('#victoryName').textContent = copy.headline;
       query('#victoryResult').textContent = copy.result;

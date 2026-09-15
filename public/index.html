@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#a52f51">
-  <meta name="description" content="Six cozy games for Dylan and Audrey. One room, wherever you are.">
+  <meta name="description" content="Eight cozy games for Dylan and Audrey. One room, wherever you are.">
   <title>Our Little Arcade · Dylan &amp; Audrey</title>
 
   <link rel="icon" href="favicon.svg?v=heart2" type="image/svg+xml">
@@ -20,6 +20,7 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="/tic-tac-toe.css">
+  <link rel="stylesheet" href="/race.css">
 </head>
 
 <body>
@@ -63,6 +64,9 @@
       </button>
       <button data-pick="rps">
         <span aria-hidden="true">✂︎</span><b>Rock Paper Scissors</b><small>First to three wins</small>
+      </button>
+      <button data-pick="race">
+        <span aria-hidden="true">🐞</span><b>Ladybug Race</b><small>Crawl to the ribbon, on the beat</small>
       </button>
     </div>
     <p id="selectedGameLabel" class="selection-label">Checkers selected · choose how to play</p>
@@ -153,6 +157,7 @@
         <button data-switch="puzzle">▦ Photo Puzzle</button>
         <button data-switch="memory">✿ Memory Match</button>
         <button data-switch="rps">✂︎ Rock Paper Scissors</button>
+        <button data-switch="race">🐞 Ladybug Race</button>
       </nav>
 
       <div id="switchRequest" class="switch-request" hidden>
@@ -268,6 +273,9 @@
           </div>
           <button id="rpsNext" class="primary" hidden>Next throw ↻</button>
         </div>
+
+        <!-- Ladybug Race. The whole surface is drawn by race.mjs. -->
+        <section id="raceSurface" class="race-surface" hidden aria-label="Ladybug Race"></section>
 
         <!-- Photo Puzzle -->
         <div id="puzzleSurface" hidden>

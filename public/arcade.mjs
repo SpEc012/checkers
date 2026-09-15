@@ -1,5 +1,5 @@
-// The five games that are not checkers, plus the redaction rules that keep
-// secrets secret.
+// The games that are not checkers, plus the redaction rules that keep secrets
+// secret.
 //
 // Like engine.mjs these are pure functions shared with the Worker: each one
 // returns a new state or null/throws when the move is not allowed, so the
@@ -15,6 +15,7 @@ export const gameNames = {
   puzzle: 'Photo Puzzle',
   memory: 'Memory Match',
   rps: 'Rock Paper Scissors',
+  race: 'Ladybug Race',
 };
 
 const PROMPTS = [
@@ -31,6 +32,45 @@ const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 const MISMATCH_REVEAL = 1400; // ms two unmatched cards stay face up
 const MAX_STROKES = 160;
 const MAX_STROKE_POINTS = 80;
+
+/**
+ * Ladybug Race. Every number the race depends on lives here so the browser
+ * draws exactly the contest the Worker scores.
+ *
+ * The rhythm is a marker sweeping back and forth across a bar once per `beatMs`
+ * and passing through a sweet spot twice, so a well-timed crawl is available
+ * every ~260 ms whether you are tapping a phone or holding a keyboard. Crawling
+ * faster than `minTapMs` earns nothing, and one off-beat tap resets the streak
+ * that makes boosts worth up to 2.3x — which is what stops mashing from beating
+ * good timing on either device.
+ */
+export const RACE = {
+  length: 1000, // track units from the start gate to the ribbon
+  step: 2.6, // one ordinary crawl
+  boost: 4.6, // added on top when a crawl lands on the beat
+  streakGain: 0.13, // each consecutive boost is worth this much more
+  streakCap: 10,
+  minTapMs: 140, // crawls closer together than this do nothing
+  boostGapMs: 170, // one boost per pass of the sweet spot
+  beatMs: 520, // one full there-and-back sweep of the rhythm marker
+  bandHalf: 0.15, // half-width of the sweet spot, in sweep units
+  countdownMs: 3200, // "Ready… set… crawl!"
+  limitMs: 75000, // a heat cannot run forever
+  tieMs: 70, // crossings this close are a photo finish
+  graceMs: 350, // allow for clock drift at the start gate
+  maxTaps: 16, // per batch
+  target: 2, // heats needed to win the match
+  maxHeats: 5, // draws extend a match, but not forever
+};
+
+export const raceTracks = {
+  tulip: 'Tulip Trail',
+  creek: 'Creekside Crawl',
+  moon: 'Moonlit Garden',
+};
+
+const RACE_BUGS = { rose: 'the cherry ladybug', cream: 'the vanilla ladybug' };
+const RACE_SIDES = ['rose', 'cream'];
 
 const other = side => (side === 'rose' ? 'cream' : 'rose');
 
@@ -109,6 +149,26 @@ export function newGame(game = 'checkers', options = {}) {
       round: 1,
       roundResult: null,
       points: { rose: 0, cream: 0 },
+    });
+  }
+
+  if (game === 'race') {
+    const choice = raceChoice(options.config?.track ?? options.track);
+    Object.assign(state, {
+      config: { track: choice },
+      track: resolveTrack(choice),
+      phase: 'ready', // ready → running (counting down, then crawling) → finished
+      heat: 1,
+      results: [], // one entry per finished heat
+      points: { rose: 0, cream: 0 },
+      ready: { rose: false, cream: false },
+      lane: { rose: 0, cream: 0 },
+      streak: { rose: 0, cream: 0 },
+      lastTap: { rose: 0, cream: 0 },
+      lastBoost: { rose: 0, cream: 0 },
+      finished: { rose: null, cream: null },
+      startAt: 0,
+      heatResult: null,
     });
   }
 
@@ -273,6 +333,195 @@ export function rpsAction(state, body, side) {
     next.history.push(`Round ${next.round}: ${next.roundResult === 'draw' ? 'tie' : `${next.roundResult} wins`}`);
   }
   return next;
+}
+
+/* ------------------------------------------------------------ ladybug race */
+
+const trackIds = () => Object.keys(raceTracks);
+
+/** Whatever the client asked for, narrowed to a track the arcade can draw. */
+function raceChoice(value) {
+  return value === 'random' || Object.hasOwn(raceTracks, value) ? value : 'tulip';
+}
+
+/** "Surprise us" picks a fresh garden for every heat. Lanes are identical. */
+function resolveTrack(choice) {
+  if (choice !== 'random') return choice;
+  const ids = trackIds();
+  return ids[Math.floor(Math.random() * ids.length)];
+}
+
+/**
+ * The rhythm, as both a picture and a judgement. The marker sweeps there and
+ * back once per beat; the sweet spot sits in the middle, so it comes around
+ * twice a beat. `pass` numbers those crossings, which is how the browser keeps
+ * itself to one boost per pass — the same limit the server enforces.
+ */
+export function raceBeat(elapsed) {
+  const sweep = (((elapsed % RACE.beatMs) + RACE.beatMs) % RACE.beatMs) / RACE.beatMs;
+  const marker = sweep < 0.5 ? sweep * 2 : 2 - sweep * 2;
+  return {
+    marker,
+    onBeat: Math.abs(marker - 0.5) <= RACE.bandHalf,
+    pass: Math.floor(elapsed / (RACE.beatMs / 2)),
+  };
+}
+
+const tally = results => ({
+  rose: results.filter(result => result === 'rose').length,
+  cream: results.filter(result => result === 'cream').length,
+});
+
+/** The match is won at two heats, or decided on points once heats run out. */
+function matchWinner(state) {
+  const { rose, cream } = state.points;
+  if (rose >= RACE.target) return 'rose';
+  if (cream >= RACE.target) return 'cream';
+  if (state.heat >= RACE.maxHeats) return rose === cream ? 'draw' : rose > cream ? 'rose' : 'cream';
+  return null;
+}
+
+/**
+ * Close the current heat. Re-callable with a different result, because a
+ * crossing that arrives inside the photo-finish window turns a win into a tie.
+ */
+function settleHeat(next, result) {
+  const first = next.heatResult === null;
+  next.heatResult = result;
+  next.phase = 'finished';
+  next.ready = { rose: false, cream: false };
+  next.results = [...next.results.slice(0, next.heat - 1), result];
+  next.points = tally(next.results);
+  next.winner = matchWinner(next);
+  const line = result === 'draw'
+    ? `Heat ${next.heat} · a photo finish`
+    : `Heat ${next.heat} · ${RACE_BUGS[result]} takes it`;
+  if (first) next.history.push(line);
+  else next.history[next.history.length - 1] = line; // the same heat, retold
+  return next;
+}
+
+/** Line both bugs up at the start gate and begin the "ready, set, crawl". */
+function startHeat(next, now) {
+  next.track = resolveTrack(next.config.track);
+  next.phase = 'running';
+  next.startAt = now + RACE.countdownMs;
+  next.heatResult = null;
+  next.ready = { rose: false, cream: false };
+  for (const side of RACE_SIDES) {
+    next.lane[side] = 0;
+    next.streak[side] = 0;
+    next.lastTap[side] = 0;
+    next.lastBoost[side] = 0;
+    next.finished[side] = null;
+  }
+  return next;
+}
+
+/** One crawl the server is willing to believe in, or null. */
+function readTap(entry) {
+  const [age, boost] = Array.isArray(entry) ? entry : [entry, 0];
+  if (!Number.isFinite(age) || age < 0 || age > 6000) return null;
+  return { age, boost: boost === 1 || boost === true };
+}
+
+/**
+ * Every Ladybug Race action. The server owns the distance, the finish order and
+ * the score; a player may only ever move their own bug, and only as fast as a
+ * real thumb could.
+ */
+export function raceAction(state, body, side, now = Date.now()) {
+  if (state.game !== 'race' || !RACE_SIDES.includes(side)) return null;
+  const action = body.action;
+  const next = structuredClone(state);
+
+  // Pick the garden. Both players start over from unready so nobody is
+  // surprised by a track they never saw.
+  if (action === 'track') {
+    if (state.phase !== 'ready' || state.winner) return null;
+    const choice = raceChoice(body.track);
+    if (choice !== 'random' && !Object.hasOwn(raceTracks, body.track)) return null;
+    next.config = { track: choice };
+    next.track = resolveTrack(choice);
+    next.ready = { rose: false, cream: false };
+    return next;
+  }
+
+  // Nobody crawls until both bugs are on the line.
+  if (action === 'ready') {
+    if (state.winner || state.phase === 'running') return null;
+    next.ready[side] = body.ready !== false;
+    if (!next.ready.rose || !next.ready.cream) return next;
+    if (state.phase === 'finished') next.heat++;
+    return startHeat(next, now);
+  }
+
+  // The heat ran out of time: the bug that got furthest takes it.
+  if (action === 'lapse') {
+    if (state.phase !== 'running' || now < state.startAt + RACE.limitMs) return null;
+    const { rose, cream } = state.lane;
+    return settleHeat(next, rose === cream ? 'draw' : rose > cream ? 'rose' : 'cream');
+  }
+
+  // A partner dropped out mid-heat: put the bugs back on the line and keep the
+  // score. Whether that is allowed is the room's call, not the rules'.
+  if (action === 'abandon') {
+    if (state.phase !== 'running' || state.winner) return null;
+    startHeat(next, now);
+    next.phase = 'ready';
+    next.startAt = 0;
+    return next;
+  }
+
+  if (action !== 'crawl') return null;
+
+  // A crawl is legal while the heat is running, and for a heartbeat after the
+  // first bug crosses so a genuine photo finish is not lost to the network.
+  const settling = state.phase === 'finished'
+    && state.finished[other(side)] !== null
+    && now - state.finished[other(side)] <= RACE.tieMs;
+  if (state.phase !== 'running' && !settling) return null;
+  if (state.finished[side] !== null) return null;
+  if (state.winner && !settling) return null;
+
+  const taps = Array.isArray(body.taps) ? body.taps.slice(0, RACE.maxTaps) : null;
+  if (!taps || !taps.length) return null;
+  const crawls = taps.map(readTap);
+  if (crawls.some(tap => tap === null)) return null;
+  // Oldest first, whatever order they arrived in.
+  crawls.sort((a, b) => b.age - a.age);
+
+  let crossedAt = null;
+  for (const tap of crawls) {
+    const at = now - tap.age;
+    if (at < state.startAt - RACE.graceMs || at > now + 60) continue;
+    if (at - next.lastTap[side] < RACE.minTapMs - 30) continue;
+
+    // The browser decides whether a crawl landed on the beat; the server
+    // decides how often that is physically possible.
+    const boost = tap.boost && at - next.lastBoost[side] >= RACE.boostGapMs;
+    if (boost) {
+      next.streak[side] = Math.min(next.streak[side] + 1, RACE.streakCap);
+      next.lane[side] += RACE.step + RACE.boost * (1 + next.streak[side] * RACE.streakGain);
+      next.lastBoost[side] = at;
+    } else {
+      // One slip costs half the streak rather than all of it: forgiving for a
+      // good player, still ruinous for anyone mashing through the beat.
+      next.streak[side] = Math.floor(next.streak[side] / 2);
+      next.lane[side] += RACE.step;
+    }
+    next.lastTap[side] = at;
+
+    if (next.lane[side] >= RACE.length && crossedAt === null) crossedAt = at;
+  }
+
+  if (crossedAt === null) return next;
+
+  next.lane[side] = RACE.length;
+  next.finished[side] = crossedAt;
+  const rival = next.finished[other(side)];
+  const photoFinish = rival !== null && Math.abs(crossedAt - rival) <= RACE.tieMs;
+  return settleHeat(next, photoFinish ? 'draw' : rival !== null && rival < crossedAt ? other(side) : side);
 }
 
 /* ------------------------------------------------------------ draw & guess */

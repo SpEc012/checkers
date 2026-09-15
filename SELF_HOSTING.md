@@ -82,9 +82,10 @@ Open `https://lovebugs.world`. The `www` version redirects to the root address, 
 2. Confirm each player can move only their own pieces. Send a message and a reaction.
 3. Try RPS: both pick secretly, the fists bounce three times, then choices reveal. Win three rounds for the match celebration.
 4. Upload a photo to Photo Puzzle. Both players should see it. Try a harder cut and agree to the change.
-5. Try a local game, reload an online room in the same tab, and check the mobile Game/Chat/Room tabs.
-6. Enable notification permissions again on this new address. Closed or suspended tabs do not receive reliable chat alerts.
-7. Watch for the lovebugs wandering the page, and add the site to a phone home screen to check the ladybug icon. If the movement is distracting, turn it off under **Alerts → Let the lovebugs wander the page**; the choice is remembered on that device.
+5. Try Ladybug Race: pick a garden, both press Ready, and check that the countdown starts together on both screens, that each of you only moves your own bug, and that the winner's name appears on the celebration. Run the phone against the laptop — the whole course should stay on screen at both sizes.
+6. Try a local game, reload an online room in the same tab, and check the mobile Game/Chat/Room tabs.
+7. Enable notification permissions again on this new address. Closed or suspended tabs do not receive reliable chat alerts.
+8. Watch for the lovebugs wandering the page, and add the site to a phone home screen to check the ladybug icon. If the movement is distracting, turn it off under **Alerts → Let the lovebugs wander the page**; the choice is remembered on that device.
 
 ## 6. Publish future updates from GitHub
 
@@ -140,3 +141,11 @@ The GitHub Pages workflow is only an entry page. Once lovebugs.world works, you 
 ### Tic Tac Toe
 
 Choose **Tic Tac Toe** in the arcade menu, then Local or Online. Hearts and tulips take turns placing a mark; three across, down, or diagonally wins. A full board without a winning line is a draw. Online rooms validate each move and require both players to accept a rematch. Existing rooms can switch to the game by mutual agreement. This game uses the existing D1 room storage and needs no new secrets, migrations, or services.
+
+### Ladybug Race
+
+Choose **Ladybug Race** in the arcade menu, then Local or Online. Two ladybugs crawl a winding garden trail; tap the big button or press space to crawl, and land your crawls while the firefly is inside the glow on the rhythm bar for a boost. Best of three. Pick Tulip Trail, Creekside Crawl, Moonlit Garden, or Surprise us between heats — every track is the same length and plays identically, so the choice is only scenery. Side by side, A crawls the cherry bug and L the vanilla one, or use the two touch buttons.
+
+Online, both players must press Ready before the countdown runs, and each player can only move their own bug. The server holds the distance, the finish order and the score, limits how often crawls and boosts can count, refuses a second finish, and hands out its own clock so both countdowns agree. Crossings within 70 ms of each other are a photo finish and count for neither player. A heat nobody finishes is called on distance after 75 seconds. If your person drops out mid-heat, the race says so and offers **Restart this heat ↻**, which keeps the match score.
+
+Because both players crawl at the same moment, a racing room is busier than a turn-based one: each player sends roughly four small requests a second while a heat is running, and the room is polled twice a second instead of once every one and a half. That is still well inside Cloudflare's free Worker and D1 request allowances for two people, but it is worth knowing if you watch your usage. Like every other game here, it uses the existing D1 room storage and needs **no new secrets, migrations, bindings or services** — deploy it exactly as you deploy any other update.

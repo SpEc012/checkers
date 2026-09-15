@@ -8,7 +8,7 @@
 // Reading order:
 //   1  State and preferences        7  Menu, lobby and rooms
 //   2  Small helpers                8  Game switching and moves
-//   3  Permissions                  9  Draw & Guess / Puzzle / Memory / RPS
+//   3  Permissions                  9  The games
 //   4  Rendering                   10  Alerts and notifications
 //   5  Checkers input              11  Rock Paper Scissors scene + celebration
 //   6  Talking to the server       12  Lovebugs and boot
@@ -17,9 +17,10 @@ import { THROW_DURATION } from './match-effects.mjs';
 import { initial, moves, apply } from './engine.mjs';
 import {
   newGame, dropHeart, placeMark, drawingAction, gameNames,
-  puzzleOptions, puzzleAction, memoryAction, rpsAction, publicGame,
+  puzzleOptions, puzzleAction, memoryAction, rpsAction, raceAction, publicGame, RACE,
 } from './arcade.mjs';
 import { renderTicTacToe } from './tic-tac-toe.mjs';
+import { createRaceView } from './race.mjs';
 import { createAudio } from './sound.mjs';
 import { celebrationKey, createCelebration } from './celebration.mjs';
 import { createLovebugs, decorate } from './lovebugs.mjs';
@@ -29,7 +30,10 @@ import { createLovebugs, decorate } from './lovebugs.mjs';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => document.querySelectorAll(selector);
 const PAGE_TITLE = 'Our Little Arcade · Dylan & Audrey';
-const SURFACES = { tictactoe: 'ttt', connect4: 'connect', draw: 'draw', puzzle: 'puzzle', memory: 'memory', rps: 'rps' };
+const SURFACES = {
+  tictactoe: 'ttt', connect4: 'connect', draw: 'draw',
+  puzzle: 'puzzle', memory: 'memory', rps: 'rps', race: 'race',
+};
 
 // Game and room state.
 let state = initial();
@@ -61,6 +65,13 @@ let stroke = null;
 let localPromptHidden = false;
 let localRpsReady = false;
 let memoryTimer = null;
+let raceView = null;
+let raceQueue = []; // crawls waiting for, or in the middle of, a round trip
+let raceSending = false;
+let raceTimer = null;
+let clockOffset = 0; // add to Date.now() for the server's clock
+let bestRtt = Infinity;
+let shownGame = null; // which game the switcher was last scrolled to
 
 // Device preferences.
 let mobilePanel = 'game';
@@ -156,6 +167,7 @@ function burst(emoji) {
 
 async function request(path, body) {
   const sending = body !== undefined;
+  const sentAt = Date.now();
   const response = await fetch(path, {
     method: sending ? 'POST' : 'GET',
     headers: sending ? { 'Content-Type': 'application/json', 'X-Player-Token': token } : {},
@@ -172,7 +184,20 @@ async function request(path, body) {
   if (!response.ok) {
     throw Object.assign(new Error(data.error || 'Something went wrong. Try again.'), { status: response.status });
   }
+  syncClock(data.now, Date.now() - sentAt);
   return data;
+}
+
+/**
+ * Keep a running estimate of the server's clock. The quickest round trip is the
+ * most honest one, so only a faster reply is allowed to move the estimate — the
+ * racing countdown has to agree with the finish line the server is judging.
+ */
+function syncClock(serverNow, rtt) {
+  if (!Number.isFinite(serverNow) || rtt > 4000) return;
+  bestRtt = Math.min(rtt, bestRtt * 1.03 + 2); // the benchmark relaxes, slowly
+  if (rtt > bestRtt) return;
+  clockOffset = serverNow + rtt / 2 - Date.now();
 }
 
 /* ----------------------------------------------------------- 3 permissions */
@@ -316,10 +341,17 @@ function renderArcade() {
     : game === 'tictactoe' ? 'Three in a row. Always on your side.'
     : game === 'connect4' ? 'Four little hearts. One very big crush.'
       : game === 'draw' ? 'Your terrible drawings are my favorite.'
-        : 'We make a pretty good picture.';
+        : game === 'race' ? 'Slow and steady loses to whoever finds the beat.'
+          : 'We make a pretty good picture.';
 
   for (const [name, id] of Object.entries(SURFACES)) $(`#${id}Surface`).hidden = game !== name;
   for (const button of $$('[data-switch]')) button.classList.toggle('current', button.dataset.switch === game);
+  // The switcher scrolls sideways once there are more games than room, so keep
+  // whichever one is open in sight.
+  if (shownGame !== game) {
+    shownGame = game;
+    $(`[data-switch="${game}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
   for (const side of ['rose', 'cream']) $(`#${side}Count`).parentElement.hidden = !checkers;
 
   const switchRequest = state.switchRequest;
@@ -335,6 +367,8 @@ function renderArcade() {
   if (game === 'puzzle') renderPuzzle();
   if (game === 'memory') renderMemory();
   if (game === 'rps') renderThrows();
+  if (game === 'race') renderRace();
+  else raceView?.stop();
 }
 
 /* -------------------------------------------------------- 5 checkers input */
@@ -445,6 +479,7 @@ function ingest(data) {
     hints = false;
     puzzlePick = null;
     localPromptHidden = false;
+    clearRaceInput();
     audio.chime(false);
   }
 
@@ -510,11 +545,14 @@ async function syncRoom() {
 function scheduleSync() {
   clearTimeout(pollTimer);
   const generation = sessionGeneration;
+  // A race is the one game where both bugs move at once, so it needs a closer
+  // look at the room than a turn-based board does.
+  const gap = kind() === 'race' && state.phase === 'running' ? 500 : 1500;
   pollTimer = setTimeout(async () => {
     if (generation !== sessionGeneration) return;
     if (!busy) await syncRoom();
     if (generation === sessionGeneration && mode === 'online') scheduleSync();
-  }, 1500);
+  }, gap);
 }
 
 /* ------------------------------------------------- 7 menu, lobby and rooms */
@@ -554,6 +592,8 @@ function enter(data) {
 function goMenu() {
   celebration.reset();
   resetThrow();
+  raceView?.stop();
+  clearRaceInput();
   document.body.classList.remove('in-game');
   $('#mobileTabs').hidden = true;
   clearUnread();
@@ -774,6 +814,7 @@ function setGame(game) {
   puzzlePick = null;
   localRpsReady = false;
   localPromptHidden = false;
+  clearRaceInput();
   clearPhoto();
   render();
 }
@@ -848,6 +889,7 @@ const RULE_NOTES = {
   puzzle: 'Work together: drag a tile or tap it, then select its matching square. Correct pieces stay in place.',
   memory: 'Flip two cards. Match a pair to keep your turn. Most pairs wins.',
   rps: 'Choose secretly. Both choices reveal together. First to three round wins takes the match.',
+  race: 'Both bugs start together. Tap, or press space, to crawl — and land it while the firefly is in the glow for a boost. A run of well-timed crawls is worth more than twice a hurried one, so the beat beats mashing. First to two heats wins.',
 };
 
 $('#rules').onclick = () => {
@@ -1440,6 +1482,167 @@ $('#rpsNext').onclick = () => {
   play({ action: 'next' });
 };
 
+// Ladybug Race ---------------------------------------------------------------
+//
+// Racing is the only game where both players act at the same instant, so it
+// does not fit the one-request-per-move shape the rest of the arcade uses.
+// Crawls are collected for a fraction of a second and sent as a batch; the
+// server scores them and owns the finish line, while this side paints an
+// optimistic bug using the very same arithmetic. Nothing is thrown away: a
+// batch that loses a race to the database is simply sent again.
+
+const RACE_BATCH = 260; // ms of crawls per request
+const RACE_STALE = 4500; // a crawl older than this is no longer worth sending
+
+/** Distance this browser believes it has earned but not yet had confirmed. */
+const raceLead = () => raceQueue.reduce((total, tap) => total + tap.value, 0);
+
+function clearRaceInput() {
+  raceQueue = [];
+  clearTimeout(raceTimer);
+  raceTimer = null;
+}
+
+/** One crawl. Online it joins the next batch; side by side it lands at once. */
+function raceCrawl(side, tap) {
+  if (mode !== 'online') {
+    const next = raceAction(state, { action: 'crawl', taps: [[0, tap.boost ? 1 : 0]] }, side, Date.now());
+    if (next) commitRace(next);
+    return;
+  }
+  if (raceQueue.length >= RACE.maxTaps * 3) return;
+  raceQueue.push(tap);
+  if (!raceTimer) raceTimer = setTimeout(flushRace, RACE_BATCH);
+  renderRace();
+}
+
+async function flushRace() {
+  raceTimer = null;
+  if (mode !== 'online' || !room || raceSending) return;
+  if (kind() !== 'race') {
+    clearRaceInput();
+    return;
+  }
+  const sentAt = performance.now();
+  raceQueue = raceQueue.filter(tap => sentAt - tap.at < RACE_STALE);
+  if (!raceQueue.length) return;
+
+  raceSending = true;
+  const batch = raceQueue.slice(0, RACE.maxTaps);
+  const id = room.id;
+  try {
+    const data = await request(`/api/rooms/${id}/play`, {
+      action: 'crawl',
+      taps: batch.map(tap => [Math.max(0, Math.round(sentAt - tap.at)), tap.boost ? 1 : 0]),
+      revision: room.revision,
+    });
+    raceQueue = raceQueue.slice(batch.length);
+    if (room?.id === id) ingest(data);
+  } catch (error) {
+    // 409 means the room moved under this batch, or a partner stepped away:
+    // keep the crawls and try again. Anything else means this heat is no
+    // longer taking them.
+    if (error.status !== 409) clearRaceInput();
+  } finally {
+    raceSending = false;
+    if (raceQueue.length && !raceTimer && kind() === 'race') raceTimer = setTimeout(flushRace, RACE_BATCH);
+  }
+}
+
+/** Fold a locally simulated race state in without redrawing the whole page. */
+function commitRace(next) {
+  const shifted = next.phase !== state.phase
+    || next.winner !== state.winner
+    || next.heatResult !== state.heatResult
+    || next.track !== state.track;
+  if (!state.winner && ['rose', 'cream'].includes(next.winner)) score[next.winner]++;
+  state = next;
+  if (shifted) render();
+  else renderRace();
+}
+
+/**
+ * Send a race action, retrying once. Two people can press Ready in the same
+ * instant; whoever loses that race to the database must not lose their press.
+ */
+async function raceSend(body) {
+  if (!room || busy) return;
+  busy = true;
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const id = room.id;
+      try {
+        const data = await request(`/api/rooms/${id}/play`, { ...body, revision: room.revision });
+        if (room?.id === id) ingest(data);
+        return;
+      } catch (error) {
+        if (error.status !== 409) {
+          toast(error.message);
+          return;
+        }
+        await syncRoom(); // take the fresh revision, then try once more
+        if (attempt) toast(error.message);
+      }
+    }
+  } finally {
+    busy = false;
+    render();
+  }
+}
+
+/** Ready, track, lapse, restart and rematch — everything that is not a crawl. */
+function raceAct(body) {
+  if (body.action === 'rematch') {
+    if (mode !== 'online') $('#rematch').click();
+    else action('rematch', body.accept === undefined ? {} : { accept: body.accept });
+    return;
+  }
+  if (mode === 'online') {
+    raceSend(body);
+    return;
+  }
+  // Side by side, both bugs belong to this device: a single Ready means both.
+  const now = Date.now();
+  const sides = body.action === 'ready' ? ['rose', 'cream'] : ['rose'];
+  let next = state;
+  for (const side of sides) next = raceAction(next, body, side, now) || next;
+  if (next !== state) commitRace(next);
+}
+
+function renderRace() {
+  raceView ??= createRaceView({
+    host: $('#raceSurface'),
+    onAction: raceAct,
+    onCrawl: raceCrawl,
+    lead: raceLead,
+    audio,
+    reducedMotion,
+  });
+
+  const live = ready();
+  raceView.update({
+    generation: sessionGeneration,
+    state,
+    names,
+    mode,
+    side: mode === 'online' ? room?.side : null,
+    connected: live,
+    canAct: live && !busy,
+    canPick: !busy && (mode === 'local' || healthy),
+    rematch: mode === 'online' ? room?.rematch || null : null,
+    clockOffset: mode === 'online' ? clockOffset : 0,
+  });
+
+  $('#turn').textContent = state.winner
+    ? state.winner === 'draw' ? 'Dead level ♡' : `${names[state.winner]} wins the race! ♡`
+    : state.phase === 'running' ? `Heat ${state.heat} · crawl!`
+      : state.phase === 'finished' ? `Heat ${state.heat} to ${state.heatResult === 'draw' ? 'nobody' : names[state.heatResult]}`
+        : 'Both bugs to the start line';
+  $('#hint').textContent = mode === 'local'
+    ? 'A crawls the cherry bug, L the vanilla one — or use the two buttons.'
+    : 'Tap the big button, or press space. Land it on the glow for a boost.';
+}
+
 /* --------------------------------------------- 10 alerts and notifications */
 
 function chatIsVisible() {
@@ -1684,7 +1887,7 @@ function updateCelebration() {
   const game = kind();
   const outcome = state.winner || (game === 'rps' ? state.roundResult : null);
   celebration.update({
-    key: celebrationKey({ generation: sessionGeneration, game, outcome, ply: state.ply, round: state.round }),
+    key: celebrationKey({ generation: sessionGeneration, game, outcome, ply: state.ply, round: state.round ?? state.heat }),
     outcome,
     game,
     names,
