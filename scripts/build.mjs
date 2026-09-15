@@ -7,6 +7,7 @@
 // public/ is all it takes to ship it.
 
 import { build } from 'esbuild';
+import { builtinModules } from 'node:module';
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, cpSync, rmSync } from 'node:fs';
 
 const TYPES = {
@@ -89,6 +90,13 @@ assets[`/${BUNDLED}`] = { body: scene.outputFiles[0].text, type: TYPES['.mjs'][0
 await build({
   stdin:{contents:`import {api} from './server/api.mjs';\nimport {notesApi} from './server/notes-api.mjs';\nimport {dispatchNotes} from './server/notes-push.mjs';\nconst assets=${JSON.stringify(assets)};\n${WORKER_RUNTIME}`,resolveDir:process.cwd(),sourcefile:'worker-entry.mjs'},
   bundle:true,format:'esm',platform:'node',target:'es2022',minify:true,
+  // Convert CommonJS built-in requires to static ESM imports for workerd.
+  plugins:[{name:'worker-node-builtins',setup(builder){
+    builder.onResolve({filter:/.*/},args=> {
+      if(args.kind==='require-call' && builtinModules.includes(args.path.replace(/^node:/,''))) return {path:args.path.replace(/^node:/,''),namespace:'node-shim'};
+    });
+    builder.onLoad({filter:/.*/,namespace:'node-shim'},args=>({contents:`import * as builtin from 'node:${args.path}'; module.exports = builtin;`,loader:'js'}));
+  }}],
   outfile:'dist/server/index.js',external:['cloudflare:*'],
 });
 
