@@ -87,7 +87,7 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
     const profile=await first(db,'SELECT * FROM ln_profile WHERE user_id=?',uid);
     const current=await first(db,'SELECT id,name,email,username FROM ln_user WHERE id=?',uid);
     const unread=await first(db,`SELECT count(*) AS count FROM ln_note n WHERE recipient_id=? AND status='sent' AND read_at IS NULL AND NOT EXISTS(SELECT 1 FROM ln_note_pref p WHERE p.note_id=n.id AND p.user_id=? AND hidden=1)`,uid,uid);
-    return json({user:current,profile:profile||{timezone:'UTC',receipts:0,previews:'sender'},pair,hasPassword:!!(await first(db,"SELECT id FROM ln_account WHERE user_id=? AND provider_id='credential' AND password IS NOT NULL",uid)),unread:unread.count});
+    return json({user:current,profile:profile||{timezone:null,receipts:0,previews:'sender'},pair,hasPassword:!!(await first(db,"SELECT id FROM ln_account WHERE user_id=? AND provider_id='credential' AND password IS NOT NULL",uid)),unread:unread.count});
   }
   if(path==='/api/notes/invites' && req.method==='POST') {
     if(pair)fail('You are already connected.');await throttle(db,uid+':invite',5,3600000);
@@ -128,6 +128,11 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
     }
     return json({sessions:(await db.prepare('SELECT id,user_agent AS label,expires_at FROM ln_session WHERE user_id=? AND expires_at>?').bind(uid,now).all()).results.map(s=>({...s,current:s.id===logged.session.id}))});
   }
+  if(path==='/api/notes/push-status' && req.method==='GET') {
+    const subscription=await first(db,'SELECT id FROM ln_push WHERE user_id=? AND session_id=?',uid,logged.session.id);
+    const last=subscription?await first(db,'SELECT status,last_http_status AS providerStatus,last_error AS reason,attempts FROM ln_outbox WHERE subscription_id=? ORDER BY rowid DESC LIMIT 1',subscription.id):null;
+    return json({configured:pushConfigured(env),subscribed:!!subscription,last});
+  }
   if(path==='/api/notes/push' && req.method==='POST') {
     if(b.remove){await run(db,'DELETE FROM ln_push WHERE user_id=? AND session_id=?',uid,logged.session.id);return json({ok:true});}
     if(!pushConfigured(env))fail('Phone notifications are waiting for server setup.',503);
@@ -140,7 +145,8 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
   if(path==='/api/notes/push-test' && req.method==='POST') {
     if(!pushConfigured(env))fail('Phone notifications need server setup.',503);await throttle(db,uid+':test',3,60000);
     const sub=await first(db,'SELECT id FROM ln_push WHERE user_id=? AND session_id=?',uid,logged.session.id);if(!sub)fail('Enable notifications first.');
-    await run(db,'INSERT INTO ln_outbox(id,user_id,subscription_id,next_at) VALUES(?,?,?,?)',id(),uid,sub.id,now);ctx.waitUntil(dispatchNotes(env));return json({ok:true});
+    const testId=id();await run(db,'INSERT INTO ln_outbox(id,user_id,subscription_id,next_at) VALUES(?,?,?,?)',testId,uid,sub.id,now);
+    const result=await dispatchNotes(env,now,testId);return json({ok:result?.status==='accepted',...(result||{status:'pending'})});
   }
   if(path==='/api/notes' && req.method==='GET') {
     const view=url.searchParams.get('view')||'inbox';const q='%'+text(url.searchParams.get('q'),100)+'%';const offset=Math.max(0,Math.min(100000,Number.parseInt(url.searchParams.get('offset')||'0',10)||0));

@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import webpush from 'web-push';
 import {createECDH,randomBytes} from 'node:crypto';
 import {dispatchNotes,validateSubscription} from '../server/notes-push.mjs';
-const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');sql.exec(readFileSync('drizzle/0001_love_notes.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');sql.exec(readFileSync('drizzle/0001_love_notes.sql','utf8'));sql.exec(readFileSync('drizzle/0003_push_diagnostics.sql','utf8'));
 const DB={prepare(q){return {bind(...a){const s=sql.prepare(q);return {async first(){return s.get(...a)||null;},async all(){return {results:s.all(...a)};},async run(){return s.run(...a);}};}};}};
 const now=Date.now();
 for(const name of ['sender','reader'])sql.prepare('INSERT INTO ln_user(id,name,email,created_at,updated_at) VALUES(?,?,?,?,?)').run(name,name,name+'@example.test',now,now);
@@ -19,10 +19,15 @@ const vapid=webpush.generateVAPIDKeys();const env={DB,VAPID_PUBLIC_KEY:vapid.pub
 const realFetch=globalThis.fetch;let calls=0;
 globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,sub.endpoint);assert.equal(options.headers['Content-Encoding'],'aes128gcm');assert.ok(!Buffer.from(options.body).toString().includes('private content'));return new Response('',{status:calls===1?503:201});};
 try{
- await dispatchNotes(env,now);assert.equal(sql.prepare('SELECT status FROM ln_note').get().status,'sent');assert.equal(sql.prepare('SELECT count(*) n FROM ln_outbox').get().n,1);assert.equal(sql.prepare('SELECT status FROM ln_outbox').get().status,'retry');
- await dispatchNotes(env,now+120000);assert.equal(calls,2);assert.equal(sql.prepare('SELECT status FROM ln_outbox').get().status,'accepted');
+ const retry=await dispatchNotes(env,now);assert.equal(retry.status,'retry');assert.equal(retry.providerStatus,503);assert.equal(sql.prepare('SELECT status FROM ln_note').get().status,'sent');assert.equal(sql.prepare('SELECT count(*) n FROM ln_outbox').get().n,1);assert.equal(sql.prepare('SELECT status FROM ln_outbox').get().status,'retry');
+ const accepted=await dispatchNotes(env,now+120000);assert.equal(accepted.status,'accepted');assert.equal(accepted.providerStatus,201);assert.equal(calls,2);assert.equal(sql.prepare('SELECT status FROM ln_outbox').get().status,'accepted');
  await dispatchNotes(env,now+240000);assert.equal(calls,2,'accepted work does not resend');
  sql.prepare("UPDATE ln_outbox SET status='pending',next_at=?").run(now);sql.exec('UPDATE ln_pair SET active=0');await dispatchNotes(env,now+250000);assert.equal(calls,2,'disconnect cancels queued notifications');
+ sql.exec('UPDATE ln_pair SET active=1');sql.prepare("UPDATE ln_outbox SET status='pending',next_at=?").run(now);
+ globalThis.fetch=async()=>new Response(JSON.stringify({reason:'BadJwtToken'}),{status:403});
+ const rejected=await dispatchNotes(env,now+260000);assert.equal(rejected.status,'failed');assert.equal(rejected.reason,'BadJwtToken');assert.equal(sql.prepare('SELECT last_http_status FROM ln_outbox').get().last_http_status,403);
+ sql.prepare("UPDATE ln_outbox SET status='pending',next_at=?").run(now);globalThis.fetch=async()=>new Response('',{status:410});
+ const expired=await dispatchNotes(env,now+270000);assert.equal(expired.status,'expired');assert.equal(sql.prepare('SELECT count(*) n FROM ln_push').get().n,0);
  sql.exec('DELETE FROM ln_session');assert.equal(sql.prepare('SELECT count(*) n FROM ln_push').get().n,0,'logout session deletes its subscriptions');assert.equal(sql.prepare('SELECT count(*) n FROM ln_outbox').get().n,0,'subscription deletion clears queued work');
 }finally{globalThis.fetch=realFetch;sql.close();}
 console.log('Push checks passed: encrypted payload, durable publication, transient retries, deduplication, disconnect and session cleanup.');

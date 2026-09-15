@@ -84,7 +84,7 @@ Use the email-code option to recover a forgotten password on the same account. P
 
 On iPhone/iPad with iOS/iPadOS 16.4 or later: open the site, use Share → Add to Home Screen, then open Two Lovebugs from its Home Screen icon. In Love Notes → Settings, tap Enable note notifications and allow the OS permission. Other supported browsers can enable Web Push through the same button.
 
-Tap Send a test notification. Check the phone's Notification Center. Close the app and repeat a real note from the other device. Focus, battery management, network connectivity, permissions, and OS policies can affect timing. No exact-second notification guarantee is made.
+Tap **Send a test notification**. The result now reports accepted, rejected (with provider status), retrying, or expired. Accepted means the push service accepted the request, not that iOS displayed it. **Check phone banner** separately checks the local notification display. **Repair notifications** replaces a stale subscription. Check the phone's Notification Center, banner permissions, Focus and Scheduled Summary. Close the app and repeat a real note from the other device. Focus, battery management, network connectivity, permissions, and OS policies can affect timing. No exact-second notification guarantee is made.
 
 The default alert contains the sender name but no note body. Choose Hide sender and message for generic alerts, or opt in to a short text preview. The preview setting affects the push payload itself. A push accepted by Apple/Google/Mozilla is not proof the recipient saw it.
 
