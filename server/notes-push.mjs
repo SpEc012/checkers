@@ -9,7 +9,12 @@ export function validateSubscription(s) {
 }
 export async function sendPush(env, subscription, payload) {
   const request=webpush.generateRequestDetails(subscription,JSON.stringify(payload),{TTL:3600,urgency:'high',vapidDetails:{subject:env.VAPID_SUBJECT,publicKey:env.VAPID_PUBLIC_KEY,privateKey:env.VAPID_PRIVATE_KEY}});
-  const response=await fetch(request.endpoint,{method:request.method,headers:request.headers,body:request.body,redirect:'error',signal:AbortSignal.timeout(10000)});
+  // web-push targets Node and supplies Content-Length itself. Workerd derives it
+  // from the fixed byte body; forwarding the Node header can make fetch throw
+  // before Apple/Google receives the request.
+  const headers=new Headers(request.headers);headers.delete('content-length');
+  const body=request.body instanceof Uint8Array?new Uint8Array(request.body):request.body;
+  const response=await fetch(request.endpoint,{method:request.method,headers,body,redirect:'error',signal:AbortSignal.timeout(10000)});
   let reason=null;
   if(!response.ok){try{const value=await response.json();if(typeof value.reason==='string'&&/^[A-Za-z0-9_]{1,80}$/.test(value.reason))reason=value.reason;}catch{}}
   return {status:response.status,reason};
@@ -36,7 +41,7 @@ export async function dispatchNotes(env, now=Date.now(), targetId=null) {
     const count=await db.prepare(`SELECT count(*) AS n FROM ln_note n WHERE recipient_id=? AND status='sent' AND read_at IS NULL AND NOT EXISTS(SELECT 1 FROM ln_note_pref p WHERE p.note_id=n.id AND p.user_id=? AND hidden=1)`).bind(current.user_id,current.user_id).first();
     const body=!current.note_id?'This is your test notification. Your notes have a way home ♡':current.previews==='generic'?'A love note is waiting for you ♡':current.previews==='text'?`${current.name}: ${(current.body || current.title || 'A drawing for you').slice(0,100)}`:`A note from ${current.name} is waiting for you ♡`;
     let status,reason;
-    try {({status,reason}=await sendPush(env,{endpoint:current.endpoint,keys:{p256dh:current.p256dh,auth:current.auth}},{account:current.user_id,id:current.id,title:'Two Lovebugs ♡',body,url:current.note_id?`/notes?note=${current.note_id}`:'/notes',unread:count.n}));} catch {status=0;reason='TransportOrConfigurationError';}
+    try {({status,reason}=await sendPush(env,{endpoint:current.endpoint,keys:{p256dh:current.p256dh,auth:current.auth}},{account:current.user_id,id:current.id,title:'Two Lovebugs ♡',body,url:current.note_id?`/notes?note=${current.note_id}`:'/notes',unread:count.n}));} catch(error){status=0;reason=error?.name==='TimeoutError'?'PushServiceTimeout':error?.name==='TypeError'?'WorkerTransportError':'TransportOrConfigurationError';}
     if(status===404 || status===410) {outcome={status:'expired',providerStatus:status,reason};await db.prepare('DELETE FROM ln_push WHERE id=?').bind(current.subscription_id).run();continue;}
     const succeeded=status>=200 && status<300;
     const nextStatus=succeeded?'accepted':claimed.attempts>=8 || (status>=400 && status<500 && status!==429)?'failed':'retry';
