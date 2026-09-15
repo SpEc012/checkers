@@ -1,0 +1,36 @@
+name: Deploy lovebugs.world
+on:
+  push:
+    branches: [main]
+    paths: [".github/deploy-lovebugs"]
+  workflow_dispatch:
+    inputs:
+      database_id:
+        description: 'Optional D1 database UUID (overrides saved variable or secret)'
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: lovebugs-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: lovebugs-production
+    env:
+      NOTES_EMAIL_BINDING: ${{ vars.NOTES_EMAIL_BINDING }}
+      NOTES_EMAIL_FROM: ${{ vars.NOTES_EMAIL_FROM }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_D1_ID: ${{ inputs.database_id || vars.CLOUDFLARE_D1_ID || secrets.CLOUDFLARE_D1_ID }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run setup:self -- --domain
+      - run: npm run deploy:self
