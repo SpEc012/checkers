@@ -13,7 +13,10 @@ async function call(path,body,cookie='') {const r=await notesApi(new Request('ht
 async function login(email,name) {let r=await call('/api/auth/email-otp/send-verification-otp',{email,type:'sign-in'});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(mail.get(email));r=await call('/api/auth/sign-in/email-otp',{email,otp:mail.get(email),name});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.cookie);return r.cookie;}
 let a=await login('dylan@example.test','Dylan'),b=await login('audrey@example.test','Audrey'),c=await login('stranger@example.test','Stranger');
 assert.equal((await call('/api/notes/me',undefined,a)).data.user.name,'Dylan');
+const ownerId=(await call('/api/notes/me',undefined,a)).data.user.id;
+sql.prepare('INSERT INTO ln_throttle(key,count,reset_at) VALUES(?,?,?)').run(ownerId+':invite',99,Date.now()+3600000);
 let invite=await call('/api/notes/invites',{},a);assert.equal(invite.status,200);const token=new URL(invite.data.url).hash.slice(8);
+for(let i=0;i<7;i++){const again=await call('/api/notes/invites',{},a);assert.equal(again.status,200);assert.equal(again.data.url,invite.data.url);assert.equal(again.data.reused,true);}
 assert.equal((await call('/api/notes/invite',{token},b)).data.name,'Dylan');
 assert.equal((await call('/api/notes/invite',{token,accept:true},b)).status,200);
 assert.equal((await call('/api/notes/invite',{token,accept:true},c)).status,404);

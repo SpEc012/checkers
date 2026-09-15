@@ -5,14 +5,20 @@ import { dispatchNotes, publishDueNotes, pushConfigured, validateSubscription } 
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
+// Reconstruct an owner's unexpired invite without storing its bearer token.
+async function inviteToken(env,uid,key) {
+ const signingKey=await crypto.subtle.importKey('raw',new TextEncoder().encode(env.BETTER_AUTH_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+ const signature=new Uint8Array(await crypto.subtle.sign('HMAC',signingKey,new TextEncoder().encode(`lovebugs-invite-v2:${uid}:${key}`)));
+ return key+'.'+btoa(String.fromCharCode(...signature)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
 const id=()=>crypto.randomUUID();
 const text=(s,max)=>typeof s==='string'?s.trim().slice(0,max):'';
 const first=(db,sql,...args)=>db.prepare(sql).bind(...args).first();
 const run=(db,sql,...args)=>db.prepare(sql).bind(...args).run();
 async function throttle(db,key,max,window=60000) {
   const now=Date.now();
-  const r=await first(db,`INSERT INTO ln_throttle(key,count,reset_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN reset_at<=? THEN 1 ELSE count+1 END,reset_at=CASE WHEN reset_at<=? THEN ? ELSE reset_at END RETURNING count`,key,now+window,now,now,now+window);
-  if(r.count>max) fail('A moment between requests, please.',429);
+  const r=await first(db,`INSERT INTO ln_throttle(key,count,reset_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN reset_at<=? THEN 1 ELSE count+1 END,reset_at=CASE WHEN reset_at<=? THEN ? ELSE reset_at END RETURNING count,reset_at`,key,now+window,now,now,now+window);
+  if(r.count>max){const seconds=Math.max(1,Math.ceil((r.reset_at-now)/1000));throw Object.assign(new Error(`Too many requests. Try again in ${seconds} seconds.`),{status:429,retryAfter:seconds});}
 }
 async function bodyOf(req) {
   if(!req.headers.get('content-type')?.startsWith('application/json')) fail('Use JSON.',415);
@@ -90,12 +96,20 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
     return json({user:current,profile:profile||{timezone:null,receipts:0,previews:'sender'},pair,hasPassword:!!(await first(db,"SELECT id FROM ln_account WHERE user_id=? AND provider_id='credential' AND password IS NOT NULL",uid)),unread:unread.count});
   }
   if(path==='/api/notes/invites' && req.method==='POST') {
-    if(pair)fail('You are already connected.');await throttle(db,uid+':invite',5,3600000);
+    if(pair)fail('You are already connected. No new invitation is needed.');
     if(b.revoke){await run(db,'UPDATE ln_invite SET revoked=1 WHERE owner_id=? AND used_by IS NULL',uid);return json({ok:true});}
-    const token=id()+id(),key=id();
-    await db.batch([db.prepare('UPDATE ln_invite SET revoked=1 WHERE owner_id=? AND used_by IS NULL').bind(uid),db.prepare('INSERT INTO ln_invite(id,token_hash,owner_id,expires_at) VALUES(?,?,?,?)').bind(key,await digest(token),uid,now+86400000)]);
-    return json({url:`${url.origin}/notes#invite=${token}`,expiresAt:now+86400000});
+    const active=(await db.prepare('SELECT id,token_hash,expires_at FROM ln_invite WHERE owner_id=? AND revoked=0 AND used_by IS NULL AND expires_at>? ORDER BY expires_at DESC LIMIT 20').bind(uid,now).all()).results;
+    for(const previous of active){
+      const token=await inviteToken(env,uid,previous.id);
+      if(await digest(token)===previous.token_hash)return json({url:`${url.origin}/notes#invite=${token}`,expiresAt:previous.expires_at,reused:true});
+    }
+    await throttle(db,uid+':invite-create-v2',10,60000);
+    const key=id(),token=await inviteToken(env,uid,key);
+    // Previously shared links stay valid until accepted, revoked or expired.
+    await run(db,'INSERT INTO ln_invite(id,token_hash,owner_id,expires_at) VALUES(?,?,?,?)',key,await digest(token),uid,now+86400000);
+    return json({url:`${url.origin}/notes#invite=${token}`,expiresAt:now+86400000,reused:false});
   }
+
   if(path==='/api/notes/invite' && req.method==='POST') {
     await throttle(db,uid+':accept',20);
     const invite=await first(db,`SELECT i.*,u.name FROM ln_invite i JOIN ln_user u ON u.id=i.owner_id WHERE token_hash=? AND revoked=0 AND used_by IS NULL AND expires_at>?`,await digest(text(b.token,100)),now);
@@ -206,5 +220,5 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
   if(b.action==='send') {await publishDueNotes(env);ctx.waitUntil(dispatchNotes(env));}
   const result=await first(db,'SELECT id,status,revision,due_at FROM ln_note WHERE id=?',noteId);if(!result)fail('Your partnership changed. Try again.',409);
   return json({note:result});
- } catch(error) {return json({error:error.status?error.message:error.message?.startsWith('Invalid')||error.message?.startsWith('This drawing')?error.message:'We could not complete that request. Please try again.'},error.status||400);}
+ } catch(error) {const response=json({error:error.status?error.message:error.message?.startsWith('Invalid')||error.message?.startsWith('This drawing')?error.message:'We could not complete that request. Please try again.'},error.status||400);if(error.retryAfter)response.headers.set('Retry-After',String(error.retryAfter));return response;}
 }
