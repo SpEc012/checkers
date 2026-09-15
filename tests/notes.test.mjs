@@ -5,18 +5,47 @@ import {readFileSync} from 'node:fs';
 import {notesApi} from '../server/notes-api.mjs';
 import {dispatchNotes} from '../server/notes-push.mjs';
 import {emptyDocument,validateDocument} from '../public/note-document.mjs';
-const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');sql.exec(readFileSync('drizzle/0001_love_notes.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');sql.exec(readFileSync('drizzle/0001_love_notes.sql','utf8'));sql.exec(readFileSync('drizzle/0002_note_passwords.sql','utf8'));
 const statement=query=>({bind(...args){const s=sql.prepare(query);return {async first(){return s.get(...args)||null;},async all(){return {results:s.all(...args)};},async run(){const r=s.run(...args);return {meta:{changes:r.changes}};},async raw(){return s.all(...args).map(row=>Object.values(row));}};}});
 const DB={prepare:statement,async batch(statements){sql.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.all());sql.exec('COMMIT');return results;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 const mail=new Map();const env={DB,NOTES_ORIGIN:'https://notes.test',NOTES_EMAIL_FROM:'notes@notes.test',BETTER_AUTH_SECRET:randomBytes(48).toString('base64url'),EMAIL:{async send(m){mail.set(m.to,m.text.match(/\b\d{6}\b/)[0]);}}};
 async function call(path,body,cookie='') {const r=await notesApi(new Request('https://notes.test'+path,{method:body===undefined?'GET':'POST',headers:{origin:'https://notes.test','content-type':'application/json',cookie,'cf-connecting-ip':'192.0.2.1'},body:body===undefined?undefined:JSON.stringify(body)}),env);const data=await r.json();return {status:r.status,data,cookie:r.headers.getSetCookie().map(x=>x.split(';')[0]).join('; ')};}
 async function login(email,name) {let r=await call('/api/auth/email-otp/send-verification-otp',{email,type:'sign-in'});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(mail.get(email));r=await call('/api/auth/sign-in/email-otp',{email,otp:mail.get(email),name});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.cookie);return r.cookie;}
-const a=await login('dylan@example.test','Dylan'),b=await login('audrey@example.test','Audrey'),c=await login('stranger@example.test','Stranger');
+let a=await login('dylan@example.test','Dylan'),b=await login('audrey@example.test','Audrey'),c=await login('stranger@example.test','Stranger');
 assert.equal((await call('/api/notes/me',undefined,a)).data.user.name,'Dylan');
 let invite=await call('/api/notes/invites',{},a);assert.equal(invite.status,200);const token=new URL(invite.data.url).hash.slice(8);
 assert.equal((await call('/api/notes/invite',{token},b)).data.name,'Dylan');
 assert.equal((await call('/api/notes/invite',{token,accept:true},b)).status,200);
 assert.equal((await call('/api/notes/invite',{token,accept:true},c)).status,404);
+// Password setup preserves the verified user and permanent partnership.
+let setup=await call('/api/notes/credentials',{username:'Dylan',password:'a-private-password-123'},a);
+assert.equal(setup.status,200,JSON.stringify(setup.data));
+assert.equal((await call('/api/notes/credentials',{username:'DYLAN',password:'another-password-123'},c)).status,409);
+assert.equal((await call('/api/notes/credentials',{username:'anon',password:'long-password-123'})).status,401);
+const userBefore=(await call('/api/notes/me',undefined,a)).data;
+assert.equal(userBefore.pair.partner_name,'Audrey');assert.equal(userBefore.user.username,'dylan');assert.equal(userBefore.hasPassword,true);
+assert.notEqual(sql.prepare("SELECT password FROM ln_account WHERE user_id=? AND provider_id='credential'").get(userBefore.user.id).password,'a-private-password-123');
+await call('/api/auth/sign-out',{},a);
+assert.equal((await call('/api/auth/sign-in/username',{username:'Dylan',password:'wrong-password'})).status,401);
+let signed=await call('/api/auth/sign-in/username',{username:'DYLAN',password:'a-private-password-123',rememberMe:false});
+assert.equal(signed.status,200,JSON.stringify(signed.data));a=signed.cookie;
+let restored=(await call('/api/notes/me',undefined,a)).data;
+assert.equal(restored.user.id,userBefore.user.id);assert.equal(restored.pair.pair_id,userBefore.pair.pair_id);
+assert.equal((await call('/api/notes/invites',{},a)).status,400,'connected accounts do not need another invite');
+// A renewed database session must also renew the browser cookie.
+sql.prepare('UPDATE ln_session SET created_at=?,updated_at=?,expires_at=? WHERE user_id=?').run(Date.now()-2*86400000,Date.now()-2*86400000,Date.now()+88*86400000,userBefore.user.id);
+const renewed=await call('/api/notes/me',undefined,a);assert.equal(renewed.status,200);assert.ok(renewed.cookie.includes('session_token'),'refresh cookie is forwarded on private API responses');
+assert.equal((await call('/api/notes/credentials',{username:'dylan',password:'changed-password-123'},a)).status,403,'old session must reauthenticate for password changes');
+// Email recovery resets the password on the same account without losing the pair.
+assert.equal((await call('/api/auth/email-otp/send-verification-otp',{email:'dylan@example.test',type:'sign-in'})).status,429,'email attempts are throttled');
+// Begin a fresh rate-limit window for the recovery scenario.
+sql.exec('DELETE FROM ln_rate_limit');
+a=await login('dylan@example.test','Dylan');
+assert.equal((await call('/api/notes/credentials',{username:'dylan',password:'recovered-password-123'},a)).status,200);
+await call('/api/auth/sign-out',{},a);
+signed=await call('/api/auth/sign-in/username',{username:'dylan',password:'recovered-password-123'});assert.equal(signed.status,200);a=signed.cookie;
+assert.equal((await call('/api/notes/me',undefined,a)).data.pair.pair_id,userBefore.pair.pair_id);
+sql.exec('DELETE FROM ln_rate_limit');
 const document=emptyDocument();document.text='Good luck, my tulip';document.strokes=[{color:'#542b3a',tool:'pen',width:5,points:[[10,10,.5,0],[20,20,.7,50]]}];
 const id=crypto.randomUUID();let r=await call('/api/notes/'+id,{action:'schedule',document,dueAt:Date.now()+60000,timezone:'America/Chicago'},a);assert.equal(r.status,200,JSON.stringify(r.data));
 assert.equal((await call('/api/notes/'+id,undefined,b)).status,404,'scheduled content stays private');

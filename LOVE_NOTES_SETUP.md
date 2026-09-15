@@ -4,7 +4,7 @@ The arcade stays available without accounts. Love Notes uses a separate `/notes`
 
 ## What is already implemented
 
-- Accounts with email codes, recovery by signing in again, 30-day sessions, and device sign-out.
+- Accounts with email codes, recovery by signing in again, 90-day rolling sessions, and device sign-out.
 - Expiring one-use partner invitations, revocation, one partner per account, and disconnect.
 - Typed, handwritten, and mixed colored notes, server drafts, search, pagination, saved keepsakes, reactions, and linked replies.
 - Pressure-aware pen, highlighter, whole-stroke eraser, undo/redo, stickers, and expanded drawing view.
@@ -73,12 +73,12 @@ This route introduces an external email provider; pricing and limits depend on y
 ## 4. Sign in and connect
 
 1. Open https://lovebugs.world/notes.
-2. Enter your name and email, request a code, and enter it from your inbox.
+2. First-time users: choose **First time here or forgot your password?**, enter your name and email, and verify the code. Choose a unique username and a password (8–128 characters). Returning users sign in with their username and password. Existing users must use the same verified email to keep their notes and partner.
 3. Create an invitation and send the link privately to your person. It expires after 24 hours.
 4. They sign in, review your name, and accept.
 5. Open Settings on each account, confirm your time zone and notification privacy preferences.
 
-Email-code sign-in is also the recovery method on another device. Keep access to your email account. The page does not store passwords. To end a lost device's access, use Settings → Signed-in devices → Sign out device.
+Use the email-code option to recover a forgotten password on the same account. Passwords are stored as salted hashes, never plaintext. Usernames are case-insensitive and separate from display names. Partner invitations are one-time setup; logging out never disconnects a pair. Sessions last 90 days and renew during use, with refreshed secure cookies sent back to the browser. Safari and an installed Home Screen app may require separate initial sign-ins. Password changes require a sign-in within the last 10 minutes and revoke other devices; reconnect notifications on those devices after signing in again. To end a lost device's access, use Settings → Signed-in devices → Sign out device.
 
 ## 5. Install and enable alerts on both phones
 

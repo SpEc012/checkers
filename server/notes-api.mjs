@@ -1,3 +1,4 @@
+import { hashPassword } from 'better-auth/crypto';
 import { createNotesAuth, notesConfigured } from './notes-auth.mjs';
 import { validateDocument, hasContent } from '../public/note-document.mjs';
 import { dispatchNotes, publishDueNotes, pushConfigured, validateSubscription } from './notes-push.mjs';
@@ -23,6 +24,12 @@ async function bodyOf(req) {
 }
 async function membership(db,uid) {return first(db,`SELECT p.id AS pair_id,u.id AS partner_id,u.name AS partner_name,COALESCE(pr.timezone,'UTC') AS partner_timezone FROM ln_member me JOIN ln_pair p ON p.id=me.pair_id AND p.active=1 JOIN ln_member partner ON partner.pair_id=me.pair_id AND partner.user_id!=me.user_id JOIN ln_user u ON u.id=partner.user_id LEFT JOIN ln_profile pr ON pr.user_id=u.id WHERE me.user_id=?`,uid);}
 export async function notesApi(req,env,ctx={waitUntil:p=>p.catch(()=>{})}) {
+ const sessionHeaders=new Headers();
+ const response=await handleNotes(req,env,ctx,sessionHeaders);
+ for(const cookie of sessionHeaders.getSetCookie())response.headers.append('Set-Cookie',cookie);
+ return response;
+}
+async function handleNotes(req,env,ctx,sessionHeaders) {
  try {
   const url=new URL(req.url),path=url.pathname,db=env.DB;
   if(req.method!=='GET' && req.method!=='POST') return json({error:'Method not allowed.'},405);
@@ -31,22 +38,45 @@ export async function notesApi(req,env,ctx={waitUntil:p=>p.catch(()=>{})}) {
   if(env.NOTES_ORIGIN && url.origin!==env.NOTES_ORIGIN) fail('Please use the configured Love Notes address.',403);
   const auth=createNotesAuth(env);
   if(path.startsWith('/api/auth/')) {
-    const allowed=['/api/auth/email-otp/send-verification-otp','/api/auth/sign-in/email-otp','/api/auth/get-session','/api/auth/sign-out'];
+    const allowed=['/api/auth/email-otp/send-verification-otp','/api/auth/sign-in/email-otp','/api/auth/get-session','/api/auth/sign-out','/api/auth/sign-in/username'];
     if(!allowed.includes(path)) fail('Not found.',404);
     if(req.method==='POST') {
       const b=await bodyOf(req);
       if(path.endsWith('/send-verification-otp') && b.type!=='sign-in') fail('Use a sign-in code.');
-      if(path.endsWith('/sign-in/email-otp')) {b.name=text(b.name,40)||'Lovebug';delete b.image;}
+      if(path.endsWith('/sign-in/username')) {b.username=text(b.username,30).toLowerCase();b.rememberMe=true;}
+      if(path.endsWith('/sign-in/email-otp')) {b.rememberMe=true;b.name=text(b.name,40)||'Lovebug';delete b.image;}
       if(path.endsWith('/sign-out')) {const s=await auth.api.getSession({headers:req.headers});if(s)await run(db,'DELETE FROM ln_push WHERE session_id=?',s.session.id);}
       req=new Request(req.url,{method:req.method,headers:req.headers,body:JSON.stringify(b)});
     }
     return await auth.handler(req);
   }
-  const logged=await auth.api.getSession({headers:req.headers});if(!logged)fail('Sign in to open your notes.',401);
+  const sessionResult=await auth.api.getSession({headers:req.headers,returnHeaders:true});
+  for(const cookie of sessionResult.headers.getSetCookie())sessionHeaders.append('Set-Cookie',cookie);
+  const logged=sessionResult.response;if(!logged)fail('Sign in to open your notes.',401);
   const uid=logged.user.id, now=Date.now();
   if(req.method==='POST') await throttle(db,uid,90);
   const b=req.method==='POST'?await bodyOf(req):{};
   const pair=await membership(db,uid);
+  if(path==='/api/notes/credentials' && req.method==='POST') {
+    if(!logged.user.emailVerified)fail('Verify your email first.',403);
+    if(now-new Date(logged.session.createdAt).getTime()>10*60*1000)fail('For account changes, sign in again with your password or an email code first.',403);
+    await throttle(db,uid+':credentials',5,3600000);
+    const handle=text(b.username,30).toLowerCase();
+    if(!/^[a-z0-9_]{3,30}$/.test(handle))fail('Choose a username with 3–30 letters, numbers or underscores.');
+    if(typeof b.password!=='string'||b.password.length<8||b.password.length>128)fail('Use a password between 8 and 128 characters.');
+    const existing=await first(db,'SELECT username FROM ln_user WHERE id=?',uid);
+    if(existing.username && existing.username!==handle)fail('Keep your existing username.');
+    const taken=await first(db,'SELECT id FROM ln_user WHERE username=? AND id!=?',handle,uid);
+    if(taken)fail('That username is taken. Choose another.',409);
+    const hashed=await hashPassword(b.password);
+    const credential=await first(db,"SELECT id FROM ln_account WHERE user_id=? AND provider_id='credential'",uid);
+    const statements=[db.prepare('UPDATE ln_user SET username=?,display_username=?,updated_at=? WHERE id=?').bind(handle,handle,now,uid)];
+    if(credential)statements.push(db.prepare('UPDATE ln_account SET password=?,updated_at=? WHERE id=?').bind(hashed,now,credential.id));
+    else statements.push(db.prepare("INSERT INTO ln_account(id,account_id,provider_id,user_id,password,created_at,updated_at) VALUES(?,?,'credential',?,?,?,?)").bind(id(),uid,uid,hashed,now,now));
+    statements.push(db.prepare('DELETE FROM ln_session WHERE user_id=? AND id!=?').bind(uid,logged.session.id));
+    try{await db.batch(statements);}catch(e){if(String(e).includes('UNIQUE'))fail('That username is taken. Choose another.',409);throw e;}
+    return json({ok:true,username:handle});
+  }
   if(path==='/api/notes/me') {
     if(req.method==='POST') {
       const name=text(b.name,40);if(!name)fail('Add your name.');
@@ -55,9 +85,9 @@ export async function notesApi(req,env,ctx={waitUntil:p=>p.catch(()=>{})}) {
       await db.batch([db.prepare('UPDATE ln_user SET name=?,updated_at=? WHERE id=?').bind(name,now,uid),db.prepare(`INSERT INTO ln_profile(user_id,timezone,receipts,previews) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET timezone=excluded.timezone,receipts=excluded.receipts,previews=excluded.previews`).bind(uid,b.timezone,b.receipts?1:0,b.previews)]);
     }
     const profile=await first(db,'SELECT * FROM ln_profile WHERE user_id=?',uid);
-    const current=await first(db,'SELECT id,name,email FROM ln_user WHERE id=?',uid);
+    const current=await first(db,'SELECT id,name,email,username FROM ln_user WHERE id=?',uid);
     const unread=await first(db,`SELECT count(*) AS count FROM ln_note n WHERE recipient_id=? AND status='sent' AND read_at IS NULL AND NOT EXISTS(SELECT 1 FROM ln_note_pref p WHERE p.note_id=n.id AND p.user_id=? AND hidden=1)`,uid,uid);
-    return json({user:current,profile:profile||{timezone:'UTC',receipts:0,previews:'sender'},pair,unread:unread.count});
+    return json({user:current,profile:profile||{timezone:'UTC',receipts:0,previews:'sender'},pair,hasPassword:!!(await first(db,"SELECT id FROM ln_account WHERE user_id=? AND provider_id='credential' AND password IS NOT NULL",uid)),unread:unread.count});
   }
   if(path==='/api/notes/invites' && req.method==='POST') {
     if(pair)fail('You are already connected.');await throttle(db,uid+':invite',5,3600000);
