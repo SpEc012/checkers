@@ -258,14 +258,39 @@
 
 /* ------------------------------------------------------------- the rhythm */
 
+.race-beats {
+  margin: 14px 0 6px;
+}
+
+.race-beat-who {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  color: var(--muted);
+  text-align: left;
+}
+
 .race-beat {
   position: relative;
   height: 46px;
-  margin: 14px 0 6px;
   background: linear-gradient(#fdeef3, #f8e2ea);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   --fly: 54px;
+  --flow: 0; /* 0 at a standing start, 1 at a full streak */
+}
+
+/* The bar warms as the streak builds, so the firefly speeding up reads as a
+   reward rather than the page glitching. */
+.race-beat::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid #f0a73c;
+  opacity: calc(var(--flow) * .85);
+  pointer-events: none;
 }
 
 /* The marker never leaves the bar, so it runs along a rail inset by its own
@@ -280,10 +305,11 @@
   position: absolute;
   top: -5px;
   bottom: -5px;
-  left: 35%;
-  right: 35%;
+  left: var(--band, 35%);
+  right: var(--band, 35%);
   border-radius: 999px;
   background: radial-gradient(ellipse at center, #ffd98a 0, #ffcf6f88 58%, transparent 80%);
+  opacity: calc(.78 + var(--flow) * .22);
   transition: background .18s var(--ease);
 }
 

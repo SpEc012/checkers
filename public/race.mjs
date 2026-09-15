@@ -17,7 +17,7 @@
 //   2  Building the scene          5  The frame loop
 //   3  Painting a snapshot         6  The controller
 
-import { RACE, raceBeat, raceTracks } from './arcade.mjs';
+import { RACE, raceBeat, raceTempo, raceTracks } from './arcade.mjs';
 import { drawLovebug } from './lovebugs.mjs';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -420,20 +420,33 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
     boardNodes[side] = { row, who, place, fill, pips };
   }
 
-  const beatBar = html('div', 'race-beat');
-  beatBar.setAttribute('aria-hidden', 'true');
-  const beatRail = html('div', 'race-beat-rail');
-  const beatMark = html('i', 'race-beat-mark');
-  beatMark.dataset.facing = 'right';
-  beatMark.append(firefly());
-  beatRail.append(html('i', 'race-beat-band'), beatMark);
-  beatBar.append(beatRail);
-  const beatLabel = html('p', 'race-beat-label', 'Crawl as the firefly crosses the glow — a run of good timing is worth twice a hurried tap.');
+  // One rhythm bar per racer. Its firefly flies faster the longer that racer's
+  // streak runs, so side by side the two of you each get your own — sharing a
+  // bar would mean sharing a tempo neither of you earned.
+  const beats = html('div', 'race-beats');
+  const bars = {};
+  for (const side of SIDES) {
+    const root = html('div', `race-beat race-beat-${side}`);
+    root.setAttribute('aria-hidden', 'true');
+    const who = html('p', 'race-beat-who');
+    const rail = html('div', 'race-beat-rail');
+    const mark = html('i', 'race-beat-mark');
+    mark.dataset.facing = 'right';
+    mark.append(firefly());
+    rail.append(html('i', 'race-beat-band'), mark);
+    root.append(rail);
+    beats.append(who, root);
+    bars[side] = { root, who, rail, mark, cycle: 0, flash: 0 };
+  }
+  // The one rule worth spelling out: it is one crawl per crossing, not a
+  // handful while the firefly happens to be inside the glow.
+  const beatLabel = html('p', 'race-beat-label',
+    'One crawl each time the firefly crosses the glow. Every well-timed crawl pays more — and speeds the firefly up.');
 
   const controls = html('div', 'race-controls');
   const note = html('p', 'surface-note race-note');
 
-  host.replaceChildren(heatLine, title, picker, stage, boards, beatBar, beatLabel, controls, note);
+  host.replaceChildren(heatLine, title, picker, stage, boards, beats, beatLabel, controls, note);
 
   /* ------------------------------------------------------- moving parts */
 
@@ -446,7 +459,6 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
   let guessed = { rose: 0, cream: 0 }; // streak as this browser believes it
   let lastTap = { rose: 0, cream: 0 };
   let lastPass = { rose: -1, cream: -1 };
-  let flash = 0;
   let spokenBeat = -1;
   let heatKey = '';
   let controlKey = '';
@@ -517,8 +529,11 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
     if (at - lastTap[side] < RACE.minTapMs) return;
     lastTap[side] = at;
 
-    const elapsed = serverNow() - view.state.startAt;
-    const beat = raceBeat(elapsed);
+    // Judge against where this racer's own firefly is right now, carried the
+    // last part-frame forward so a tap is never a frame out of date.
+    const bar = bars[side];
+    const cycle = bar.cycle + Math.max(0, at - lastFrame) / raceTempo(guessed[side]);
+    const beat = raceBeat(cycle, guessed[side]);
     const boost = beat.onBeat && beat.pass !== lastPass[side];
     if (boost) lastPass[side] = beat.pass;
 
@@ -532,7 +547,7 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
 
     if (boost) {
       audio.spark(Math.min(guessed[side], 6));
-      flash = at;
+      bar.flash = at;
       sparkle(side, shown[side] / RACE.length);
     } else {
       audio.step();
@@ -589,7 +604,11 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
     if (!view) return;
     const state = view.state;
     const now = time || performance.now();
-    const dt = Math.min(0.1, (now - lastFrame) / 1000 || 0);
+    // Held apart from `lastFrame`, which the crawl handler reads to carry a tap
+    // the last part-frame forward. Capped so a tab left in the background does
+    // not wake up and skip the firefly past a dozen sweet spots.
+    const sinceFrame = Math.min(100, now - lastFrame || 0);
+    const dt = Math.min(0.1, sinceFrame / 1000);
     lastFrame = now;
     const server = serverNow();
     const mine = view.mode === 'online' ? view.side : null;
@@ -629,28 +648,43 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
         }
         callout.textContent = step === 0 ? 'Ready…' : 'Set…';
         banner.dataset.tone = 'count';
-        beatMark.style.left = '0%';
+        for (const side of SIDES) bars[side].mark.style.left = '0%';
       } else {
         if (spokenBeat !== 2) {
           spokenBeat = 2;
           audio.countdown(2);
         }
         const elapsed = server - state.startAt;
-        const beat = raceBeat(elapsed);
-        beatMark.style.left = `${(beat.marker * 100).toFixed(1)}%`;
-        beatMark.dataset.facing = beat.rising ? 'right' : 'left';
-        beatBar.classList.toggle('on-beat', beat.onBeat);
-        beatBar.classList.toggle('hit', now - flash < 180);
+
+        // Each firefly flies at its own racer's tempo. Adding to a running
+        // cycle rather than dividing the clock is what lets it speed up
+        // without the marker ever jumping.
+        for (const side of SIDES) {
+          const bar = bars[side];
+          if (bar.root.hidden) continue;
+          const flow = Math.min(guessed[side], RACE.streakCap) / RACE.streakCap;
+          bar.cycle += sinceFrame / raceTempo(guessed[side]);
+          const beat = raceBeat(bar.cycle, guessed[side]);
+          bar.mark.style.left = `${(beat.marker * 100).toFixed(1)}%`;
+          bar.mark.dataset.facing = beat.rising ? 'right' : 'left';
+          bar.root.classList.toggle('on-beat', beat.onBeat);
+          bar.root.classList.toggle('hit', now - bar.flash < 180);
+          bar.root.style.setProperty('--flow', flow.toFixed(2));
+          // The drawn glow is the judged glow: it has to shrink with it.
+          bar.root.style.setProperty('--band', `${((0.5 - beat.band) * 100).toFixed(1)}%`);
+        }
+
         const left = Math.ceil((state.startAt + RACE.limitMs - server) / 1000);
-        const streak = Math.max(mine ? guessed[mine] : 0, mine ? state.streak[mine] : Math.max(state.streak.rose, state.streak.cream));
+        const streak = mine ? guessed[mine] : Math.max(guessed.rose, guessed.cream);
         banner.dataset.tone = left <= 15 ? 'hurry' : 'go';
         callout.textContent = left <= 15 ? `${Math.max(0, left)} seconds left!`
           : elapsed < 1400 ? 'Crawl!'
-            : streak >= 3 ? `On the beat! ×${streak}`
-              : 'Tap on the glow ♡';
+            : streak >= RACE.streakCap ? 'Full speed! ✦'
+              : streak >= 3 ? `On the beat! ×${streak}`
+                : 'Tap on the glow ♡';
       }
     } else {
-      beatBar.classList.remove('on-beat', 'hit');
+      for (const side of SIDES) bars[side].root.classList.remove('on-beat', 'hit');
     }
 
     // Nobody crawled and the clock ran out: ask the room to call it, once.
@@ -712,6 +746,7 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
         lastPass = { rose: -1, cream: -1 };
         lastTap = { rose: 0, cream: 0 };
         guessed = { rose: 0, cream: 0 };
+        for (const side of SIDES) Object.assign(bars[side], { cycle: 0, flash: 0 });
         if (state.phase !== 'finished') {
           shown = { ...state.lane };
           seen = { rose: { at: 0, lane: 0, rate: 0 }, cream: { at: 0, lane: 0, rate: 0 } };
@@ -778,8 +813,16 @@ export function createRaceView({ host, onAction, onCrawl, lead, audio, reducedMo
         audio.finish();
       }
 
-      beatBar.hidden = state.phase !== 'running';
-      beatLabel.hidden = state.phase !== 'running';
+      // Online you watch your own firefly; side by side you get one each.
+      const racing = state.phase === 'running';
+      for (const side of SIDES) {
+        const bar = bars[side];
+        const owned = next.mode !== 'online' || side === next.side;
+        bar.root.hidden = !racing || !owned;
+        bar.who.hidden = bar.root.hidden || next.mode === 'online';
+        bar.who.textContent = `${names[side]}’s firefly`;
+      }
+      beatLabel.hidden = !racing;
 
       // Controls: ready, crawl, or what happens next. Rebuilt only when they
       // actually change, so a crawl button is never pulled out from under a

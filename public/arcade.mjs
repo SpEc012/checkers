@@ -37,23 +37,29 @@ const MAX_STROKE_POINTS = 80;
  * Ladybug Race. Every number the race depends on lives here so the browser
  * draws exactly the contest the Worker scores.
  *
- * The rhythm is a marker sweeping back and forth across a bar once per `beatMs`
- * and passing through a sweet spot twice, so a well-timed crawl is available
- * every ~260 ms whether you are tapping a phone or holding a keyboard. Crawling
- * faster than `minTapMs` earns nothing, and one off-beat tap resets the streak
- * that makes boosts worth up to 2.3x — which is what stops mashing from beating
- * good timing on either device.
+ * The rhythm is a firefly sweeping back and forth across a bar, through a sweet
+ * spot it crosses twice a sweep. A crawl that lands in the sweet spot is worth
+ * far more than a hurried one — and it also makes the firefly *faster*. At a
+ * standing start a sweep takes `slowBeatMs`, which is easy to read; at a full
+ * streak it takes `fastBeatMs`, nearly twice as quick. So the reward for good
+ * timing is more ground and a harder rhythm at the same time, and one off-beat
+ * tap halves the streak, slowing the firefly back down.
+ *
+ * Crawling faster than `minTapMs` earns nothing at all, which is what keeps a
+ * thumb and a keyboard on equal terms: timing, not tapping speed, is the game.
  */
 export const RACE = {
-  length: 1000, // track units from the start gate to the ribbon
-  step: 2.6, // one ordinary crawl
-  boost: 4.6, // added on top when a crawl lands on the beat
+  length: 1150, // track units from the start gate to the ribbon
+  step: 1.8, // one ordinary crawl
+  boost: 5.2, // added on top when a crawl lands on the beat
   streakGain: 0.13, // each consecutive boost is worth this much more
   streakCap: 10,
-  minTapMs: 140, // crawls closer together than this do nothing
-  boostGapMs: 170, // one boost per pass of the sweet spot
-  beatMs: 520, // one full there-and-back sweep of the rhythm marker
-  bandHalf: 0.15, // half-width of the sweet spot, in sweep units
+  minTapMs: 95, // crawls closer together than this do nothing
+  slowBeatMs: 640, // one there-and-back sweep, from a standing start
+  fastBeatMs: 400, // …and once the streak is full
+  slowBandHalf: 0.3, // a generous sweet spot while you are finding the beat
+  fastBandHalf: 0.15, // …and a tight one once you have it
+  boostSlack: 0.88, // share of the honest gap the server will believe
   countdownMs: 3200, // "Ready… set… crawl!"
   limitMs: 75000, // a heat cannot run forever
   tieMs: 70, // crossings this close are a photo finish
@@ -351,19 +357,45 @@ function resolveTrack(choice) {
   return ids[Math.floor(Math.random() * ids.length)];
 }
 
+/** 0 at a standing start, 1 once the streak is full. */
+const flow = streak => Math.min(Math.max(streak, 0), RACE.streakCap) / RACE.streakCap;
+
+/** How long one there-and-back sweep takes at this streak. */
+export function raceTempo(streak = 0) {
+  return RACE.slowBeatMs + (RACE.fastBeatMs - RACE.slowBeatMs) * flow(streak);
+}
+
+/** How wide the sweet spot is at this streak. Generous first, tight later. */
+export function raceBand(streak = 0) {
+  return RACE.slowBandHalf + (RACE.fastBandHalf - RACE.slowBandHalf) * flow(streak);
+}
+
 /**
- * The rhythm, as both a picture and a judgement. The marker sweeps there and
- * back once per beat; the sweet spot sits in the middle, so it comes around
- * twice a beat. `pass` numbers those crossings, which is how the browser keeps
- * itself to one boost per pass — the same limit the server enforces.
+ * The closest together two well-timed crawls can honestly be at this streak:
+ * the end of one pass through the sweet spot to the start of the next. It is
+ * the whole of the server's anti-cheat on boosts, so it follows the firefly
+ * rather than being pinned to the slowest tempo.
  */
-export function raceBeat(elapsed) {
-  const sweep = (((elapsed % RACE.beatMs) + RACE.beatMs) % RACE.beatMs) / RACE.beatMs;
+export function raceBoostGap(streak = 0) {
+  return ((raceTempo(streak) * (1 - 2 * raceBand(streak))) / 2) * RACE.boostSlack;
+}
+
+/**
+ * The rhythm, as both a picture and a judgement. `cycle` counts sweeps — a
+ * running total the browser adds to each frame, so the firefly speeds up
+ * smoothly instead of jumping when the streak changes. The sweet spot sits in
+ * the middle of the sweep, so it comes around twice per cycle; `pass` numbers
+ * those crossings, which is how the browser holds itself to one boost per pass.
+ */
+export function raceBeat(cycle, streak = 0) {
+  const sweep = ((cycle % 1) + 1) % 1;
   const marker = sweep < 0.5 ? sweep * 2 : 2 - sweep * 2;
+  const band = raceBand(streak);
   return {
     marker,
-    onBeat: Math.abs(marker - 0.5) <= RACE.bandHalf,
-    pass: Math.floor(elapsed / (RACE.beatMs / 2)),
+    band,
+    onBeat: Math.abs(marker - 0.5) <= band,
+    pass: Math.floor(cycle * 2),
     rising: sweep < 0.5, // which way the firefly is flying
   };
 }
@@ -499,8 +531,11 @@ export function raceAction(state, body, side, now = Date.now()) {
     if (at - next.lastTap[side] < RACE.minTapMs - 30) continue;
 
     // The browser decides whether a crawl landed on the beat; the server
-    // decides how often that is physically possible.
-    const boost = tap.boost && at - next.lastBoost[side] >= RACE.boostGapMs;
+    // decides how often that is physically possible — and since the firefly
+    // flies faster the longer the streak runs, so does that limit. The streak
+    // here is the one the player was racing against when they tapped, because
+    // taps are replayed in the order they were made.
+    const boost = tap.boost && at - next.lastBoost[side] >= raceBoostGap(next.streak[side]);
     if (boost) {
       next.streak[side] = Math.min(next.streak[side] + 1, RACE.streakCap);
       next.lane[side] += RACE.step + RACE.boost * (1 + next.streak[side] * RACE.streakGain);

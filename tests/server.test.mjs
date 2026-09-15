@@ -287,7 +287,10 @@ assert.equal(r.data.state.lane.rose, 0, 'a crawl from before the countdown is ig
 // Both bugs crawl at once, neither one waiting for the other's revision.
 const wait = ms => new Promise(resolve => setTimeout(resolve, Math.max(0, ms)));
 await wait(gun + 40 - Date.now());
-for (let round = 0; round < 6; round++) {
+// Rose lands one crawl on every beat; cream lands one and squeezes an extra
+// off-beat one in beside it. Long enough for rose's streak — and so the
+// firefly's tempo — to climb.
+for (let round = 0; round < 14; round++) {
   r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
   assert.equal(r.status, 200);
   // Cream never refreshes its revision, and never has to: crawls are its own
@@ -297,18 +300,20 @@ for (let round = 0; round < 6; round++) {
   await wait(180);
 }
 assert.ok(r.data.state.lane.rose > 0 && r.data.state.lane.cream > 0, 'both bugs moved');
+assert.equal(r.data.state.streak.rose, RACE.streakCap, 'an unbroken run fills the streak');
+assert.ok(r.data.state.streak.cream <= 1, 'the extra off-beat crawl keeps costing cream its streak');
 assert.ok(
-  r.data.state.lane.rose > r.data.state.lane.cream,
-  'keeping time beats tapping twice as often off the beat',
+  r.data.state.lane.rose > r.data.state.lane.cream * 1.15,
+  `keeping time (${r.data.state.lane.rose.toFixed(0)}) beats tapping more often off the beat (${r.data.state.lane.cream.toFixed(0)})`,
 );
 
 // Now put rose on the ribbon so the finish can be tested in a heartbeat rather
 // than a real twenty seconds.
-placeBugs({ rose: 999 });
+placeBugs({ rose: RACE.length - 1 });
 r = await call(route('sync'), {});
 r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
 assert.equal(r.data.state.heatResult, 'rose');
-assert.equal(r.data.state.lane.rose, 1000);
+assert.equal(r.data.state.lane.rose, RACE.length);
 assert.deepEqual(r.data.state.points, { rose: 1, cream: 0 });
 assert.equal(r.data.score.rose, 0, 'a heat is not a match');
 
@@ -334,7 +339,7 @@ assert.equal(r.data.state.lane.rose, 0, 'the second heat starts at the gate');
 await wait(r.data.state.startAt + 40 - Date.now());
 assert.equal((await call(route('play'), { action: 'lapse', revision: r.data.revision })).status, 400,
   'a heat cannot be called early');
-placeBugs({ rose: 999 });
+placeBugs({ rose: RACE.length - 1 });
 r = await call(route('sync'), {});
 r = await call(route('play'), { action: 'crawl', taps: [[0, 1]], revision: r.data.revision });
 assert.equal(r.data.state.winner, 'rose');

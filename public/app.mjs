@@ -889,7 +889,7 @@ const RULE_NOTES = {
   puzzle: 'Work together: drag a tile or tap it, then select its matching square. Correct pieces stay in place.',
   memory: 'Flip two cards. Match a pair to keep your turn. Most pairs wins.',
   rps: 'Choose secretly. Both choices reveal together. First to three round wins takes the match.',
-  race: 'Both bugs start together. Tap, or press space, to crawl — and land it while the firefly is in the glow for a boost. A run of well-timed crawls is worth more than twice a hurried one, so the beat beats mashing. First to two heats wins.',
+  race: 'Both bugs start together. Tap, or press space, to crawl. One crawl each time the firefly crosses the glow earns a boost — extra taps in the same crossing earn nothing and break your streak. A streak is worth more than twice a hurried tap, and it makes the firefly faster and the glow narrower, so the race gets harder as you get better. First to two heats wins.',
 };
 
 $('#rules').onclick = () => {

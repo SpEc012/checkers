@@ -6,7 +6,9 @@
 // functions running on the Worker.
 
 import assert from 'node:assert/strict';
-import { newGame, raceAction, raceBeat, raceTracks, RACE } from '../public/arcade.mjs';
+import {
+  newGame, raceAction, raceBeat, raceBand, raceBoostGap, raceTempo, raceTracks, RACE,
+} from '../public/arcade.mjs';
 
 const T0 = 1_000_000;
 const tap = (boost = 0, age = 0) => [age, boost];
@@ -23,7 +25,7 @@ function lineUp(options) {
 }
 
 /** Crawl `count` times, on or off the beat, one every `gap` ms. */
-function crawl(state, side, { count = 1, gap = RACE.beatMs / 2, boost = true, from = null }) {
+function crawl(state, side, { count = 1, gap = RACE.slowBeatMs / 2, boost = true, from = null }) {
   let at = from ?? state.startAt;
   let current = state;
   for (let i = 0; i < count; i++) {
@@ -76,16 +78,21 @@ assert.equal(raceAction(lineUp(), { action: 'track', track: 'moon' }, 'rose', T0
   assert.ok(mine.lane.rose > 0);
   assert.equal(mine.lane.cream, 0, 'crawling never touches the other lane');
 
-  // Faster than a thumb can go: sixteen crawls 10 ms apart are worth two, and
-  // only the first of those is close enough to a fresh beat to be a boost.
+  // Faster than a thumb can go: sixteen crawls 10 ms apart are mostly thrown
+  // away, and the handful that land are worth less than three that were timed.
   const hammered = raceAction(race, {
     action: 'crawl',
     taps: Array.from({ length: RACE.maxTaps }, (_, i) => tap(1, i * 10)),
   }, 'cream', race.startAt + 400);
-  assert.equal(hammered.lane.cream, RACE.step * 2 + RACE.boost * (1 + RACE.streakGain));
-  assert.equal(hammered.streak.cream, 0, 'and the crowded one breaks the streak');
+  const timed = crawl(race, 'cream', { count: 3, boost: true }).state;
+  assert.ok(
+    hammered.lane.cream < timed.lane.cream,
+    `sixteen crowded crawls (${hammered.lane.cream.toFixed(1)}) beaten by three timed ones (${timed.lane.cream.toFixed(1)})`,
+  );
+  assert.ok(hammered.streak.cream <= 1, 'and no streak survives the crowding');
 
   // A boost claimed too soon after the last one is scored as an ordinary crawl.
+  assert.ok(RACE.minTapMs + 5 < raceBoostGap(0), 'the gap under test really is too short');
   const quick = crawl(race, 'rose', { count: 2, gap: RACE.minTapMs + 5, boost: true }).state;
   assert.equal(quick.streak.rose, 0, 'a second boost inside the same pass is just a crawl');
   assert.equal(
@@ -111,24 +118,55 @@ assert.equal(raceAction(lineUp(), { action: 'track', track: 'moon' }, 'rose', T0
 }
 
 {
-  // The rhythm the browser draws: a marker sweeping there and back, through a
-  // sweet spot that comes round twice a beat.
+  // The rhythm the browser draws: a firefly sweeping there and back through a
+  // sweet spot it crosses twice a sweep. `cycle` counts sweeps, not time, so
+  // the tempo can change without the firefly ever jumping.
   assert.equal(raceBeat(0).marker, 0);
-  assert.ok(Math.abs(raceBeat(RACE.beatMs / 2).marker - 1) < 1e-9, 'halfway is the far end');
-  assert.ok(raceBeat(RACE.beatMs / 4).onBeat, 'the middle of the sweep is the sweet spot');
-  assert.ok(!raceBeat(0).onBeat && !raceBeat(RACE.beatMs / 2).onBeat, 'the ends are not');
-  assert.equal(raceBeat(RACE.beatMs * 2).pass, 4, 'two passes to a beat');
-  assert.equal(raceBeat(RACE.beatMs * 0.25).rising, true, 'the firefly flies out…');
-  assert.equal(raceBeat(RACE.beatMs * 0.75).rising, false, '…and back again');
+  assert.ok(Math.abs(raceBeat(0.5).marker - 1) < 1e-9, 'halfway is the far end');
+  assert.ok(raceBeat(0.25).onBeat, 'the middle of the sweep is the sweet spot');
+  assert.ok(!raceBeat(0).onBeat && !raceBeat(0.5).onBeat, 'the ends are not');
+  assert.equal(raceBeat(2).pass, 4, 'two passes to a sweep');
+  assert.equal(raceBeat(0.25).rising, true, 'the firefly flies out…');
+  assert.equal(raceBeat(0.75).rising, false, '…and back again');
+  assert.deepEqual(raceBeat(3.25).marker, raceBeat(0.25).marker, 'every sweep is the same shape');
 
-  let inside = 0;
-  for (let ms = 0; ms < RACE.beatMs; ms++) if (raceBeat(ms).onBeat) inside++;
-  const share = inside / RACE.beatMs;
-  assert.ok(share > 0.25 && share < 0.35, `the sweet spot is about a third of the sweep, got ${share}`);
+  for (const streak of [0, RACE.streakCap]) {
+    let inside = 0;
+    const steps = 2000;
+    for (let i = 0; i < steps; i++) if (raceBeat(i / steps, streak).onBeat) inside++;
+    const share = inside / steps;
+    assert.ok(Math.abs(share - raceBand(streak) * 2) < 0.01, `the glow is ${raceBand(streak) * 200}% of the sweep`);
+  }
+}
 
-  const passes = new Set();
-  for (let ms = 0; ms < RACE.beatMs * 3; ms++) if (raceBeat(ms).onBeat) passes.add(raceBeat(ms).pass);
-  assert.equal(passes.size, 6, 'six chances at a boost every three beats');
+/* ------------------------------------------- the firefly speeds up with you */
+
+{
+  // A standing start is slow and forgiving; a full streak is fast and tight.
+  assert.equal(raceTempo(0), RACE.slowBeatMs);
+  assert.equal(raceTempo(RACE.streakCap), RACE.fastBeatMs);
+  assert.equal(raceTempo(RACE.streakCap * 5), RACE.fastBeatMs, 'and no faster than that');
+  assert.ok(raceTempo(5) > raceTempo(6), 'every well-timed crawl speeds it up');
+  assert.ok(RACE.fastBeatMs < RACE.slowBeatMs * 0.7, 'the difference is worth noticing');
+
+  assert.equal(raceBand(0), RACE.slowBandHalf);
+  assert.equal(raceBand(RACE.streakCap), RACE.fastBandHalf);
+  assert.ok(raceBand(5) > raceBand(6), 'and narrows the glow as it goes');
+
+  // The server's boost spacing has to follow the firefly, or well-timed crawls
+  // at full speed would be thrown away as impossible.
+  for (const streak of [0, 3, 7, RACE.streakCap]) {
+    const honest = (raceTempo(streak) * (1 - 2 * raceBand(streak))) / 2;
+    assert.ok(raceBoostGap(streak) < honest, `a real crawl at streak ${streak} is never refused`);
+    assert.ok(raceBoostGap(streak) > honest * 0.6, `but a fake one at streak ${streak} still is`);
+  }
+  // The glow narrows about as fast as the firefly speeds up, so the honest
+  // spacing between two boosts barely moves across the whole ramp — and it
+  // stays above the tap limit, so crawling on every beat at full speed is never
+  // mistaken for mashing.
+  const gaps = [0, 2, 4, 6, 8, RACE.streakCap].map(raceBoostGap);
+  assert.ok(Math.max(...gaps) < Math.min(...gaps) * 1.3, 'the boost limit holds steady as the tempo climbs');
+  assert.ok(RACE.minTapMs < Math.min(...gaps), 'and always leaves room for a real crawl');
 }
 
 /* ---------------------------------------------------- rhythm beats mashing */
@@ -137,23 +175,49 @@ assert.equal(raceAction(lineUp(), { action: 'track', track: 'moon' }, 'rose', T0
   // The promise the game makes: over the same stretch of time, keeping time
   // gets you further than tapping as fast as you can. This is what makes a
   // phone and a keyboard equally competitive.
-  // Each player claims a boost exactly when the marker really is in the glow,
-  // so the only difference between them is when they choose to tap.
-  const run = (first, gap) => {
+  // A stand-in for the browser: carry a cycle forward at whatever tempo this
+  // player's own streak has earned, and claim a boost exactly when the firefly
+  // really is in the glow. The only difference between the two players below
+  // is when they choose to tap.
+  const run = watching => {
     let state = lineUp();
-    for (let elapsed = first; elapsed < 12000; elapsed += gap) {
-      const onBeat = raceBeat(elapsed).onBeat;
-      const next = raceAction(state, { action: 'crawl', taps: [tap(onBeat ? 1 : 0)] }, 'rose', state.startAt + elapsed);
+    let now = state.startAt;
+    let cycle = 0;
+    let lastTap = -1e9;
+    let lastPass = -1;
+    let streak = 0;
+    const tick = 2;
+
+    while (now - state.startAt < 12000) {
+      cycle += tick / raceTempo(streak);
+      now += tick;
+      const beat = raceBeat(cycle, streak);
+      // The rhythm player waits for the middle of the glow; the masher does not.
+      const wants = watching ? Math.abs(beat.marker - 0.5) < 0.02 : true;
+      if (!wants || now - lastTap < RACE.minTapMs) continue;
+      lastTap = now;
+
+      const boost = beat.onBeat && beat.pass !== lastPass;
+      if (boost) lastPass = beat.pass;
+      streak = boost ? Math.min(streak + 1, RACE.streakCap) : Math.floor(streak / 2);
+      const next = raceAction(state, { action: 'crawl', taps: [tap(boost ? 1 : 0)] }, 'rose', now);
       if (next) state = next;
     }
-    return Math.round(state.lane.rose);
+    return { gone: Math.round(state.lane.rose), streak };
   };
-  // Four crawls a second, each one in the middle of a pass…
-  const rhythm = run(RACE.beatMs / 4, RACE.beatMs / 2);
-  // …against seven a second, as fast as the game will take them.
-  const mashing = run(0, RACE.minTapMs);
-  assert.ok(rhythm > mashing * 1.15, `rhythm (${rhythm}) must beat mashing (${mashing})`);
-  assert.ok(mashing > rhythm * 0.6, `but mashing (${mashing}) is never hopeless against rhythm (${rhythm})`);
+
+  const rhythm = run(true);
+  const mashing = run(false);
+  assert.equal(rhythm.streak, RACE.streakCap, 'keeping time fills the streak');
+  assert.ok(mashing.streak < 3, 'mashing never holds one');
+  assert.ok(
+    rhythm.gone > mashing.gone * 1.25,
+    `rhythm (${rhythm.gone}) must clearly beat mashing (${mashing.gone})`,
+  );
+  assert.ok(
+    mashing.gone > rhythm.gone * 0.45,
+    `but mashing (${mashing.gone}) is never hopeless against rhythm (${rhythm.gone})`,
+  );
 }
 
 /* ------------------------------------------- the ribbon, and a photo finish */

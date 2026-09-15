@@ -86,10 +86,24 @@ button — or press space — to crawl. A rhythm bar runs under the garden with 
 firefly sweeping back and forth through a glow; land a crawl while it is inside
 the glow and your bug surges, and a run of well-timed crawls builds a streak
 worth more than twice a hurried tap. One slip costs half the streak, not all of
-it. Crawling faster than about seven times a second earns nothing at all, which
-is what keeps a thumb and a keyboard on equal terms: the winning rate is roughly
-four crawls a second, on the beat. A heat between two people who have found the
-beat lasts about twenty to thirty seconds.
+it.
+
+**The firefly speeds up as you earn it.** From a standing start a sweep takes
+640 ms and the glow covers most of the bar — easy to read, easy to land. Every
+well-timed crawl pushes it faster and narrows the glow, until at a full streak
+it is crossing in 400 ms through a target half the size. So the reward for
+finding the beat is more ground *and* a harder rhythm, and an off-beat tap
+halves the streak, slowing the firefly back down until you have it again. Miss
+often enough and it drops all the way back to a gentle crawl. Side by side you
+each get your own firefly, because a shared one would mean a shared tempo
+neither of you earned.
+
+Crawling faster than about ten times a second earns nothing at all, which is
+what keeps a thumb and a keyboard on equal terms: the winning rate is between
+three and five crawls a second, on the beat. Simulated against the real rules, a
+heat takes about 18 seconds played expertly, 20–26 for someone following the
+beat honestly, and about 31 for someone mashing as fast as the game will take
+it — the rhythm is worth roughly a third off your time.
 
 Best of three. Each heat opens with "Ready… set… crawl!", a progress bar and a
 percentage for each bug, and two pips showing heats won. The whole course is
@@ -113,8 +127,11 @@ Crawls are gathered for about a quarter of a second and sent as a batch of
 timestamps; the browser says which of them it judged to be on the beat, and the
 server decides everything that matters — how far that is worth, who crossed the
 ribbon, and who wins the match. It enforces the minimum gap between crawls and
-between boosts, so the fastest possible cheat is no faster than a player with
-perfect timing. Batches carry no board revision, because a crawl only ever
+between boosts, and because the firefly's tempo depends only on the streak the
+server is itself keeping, that boost limit follows the tempo rather than being
+pinned to the slowest one. The fastest possible cheat is therefore no faster
+than a player with perfect timing, at any point on the ramp. Batches carry no
+board revision, because a crawl only ever
 touches its own lane; the revision-guarded write still refuses to sit on top of a
 change it never saw, and a batch that loses that race is simply sent again, so no
 tap is ever lost. The room hands out the server's clock with every snapshot, so
