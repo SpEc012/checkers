@@ -1,1 +1,1 @@
-Deploy Worker-native Web Push transport without Node Content-Length headers.
+Deploy minimal Worker Web Push fetch and safe transport error details.
