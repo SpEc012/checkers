@@ -842,7 +842,7 @@ $('#sound').onclick = () => {
 };
 
 const RULE_NOTES = {
-  tictactoe: 'Hearts versus daisies. Tap an empty tile on your turn. Three across, down, or diagonally wins. A full board without a line is a draw.',
+  tictactoe: 'Hearts versus tulips. Tap an empty tile on your turn. Three across, down, or diagonally wins. A full board without a line is a draw.',
   connect4: 'Take turns dropping a heart. Four in a row wins.',
   draw: 'The artist sketches a secret prompt. The other player guesses. Take turns after each round.',
   puzzle: 'Work together: drag a tile or tap it, then select its matching square. Correct pieces stay in place.',
