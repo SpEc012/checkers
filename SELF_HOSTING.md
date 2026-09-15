@@ -139,4 +139,4 @@ The GitHub Pages workflow is only an entry page. Once lovebugs.world works, you 
 
 ### Tic Tac Toe
 
-Choose **Tic Tac Toe** in the arcade menu, then Local or Online. Hearts and daisies take turns placing a mark; three across, down, or diagonally wins. A full board without a winning line is a draw. Online rooms validate each move and require both players to accept a rematch. Existing rooms can switch to the game by mutual agreement. This game uses the existing D1 room storage and needs no new secrets, migrations, or services.
+Choose **Tic Tac Toe** in the arcade menu, then Local or Online. Hearts and tulips take turns placing a mark; three across, down, or diagonally wins. A full board without a winning line is a draw. Online rooms validate each move and require both players to accept a rematch. Existing rooms can switch to the game by mutual agreement. This game uses the existing D1 room storage and needs no new secrets, migrations, or services.

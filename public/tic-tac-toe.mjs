@@ -1,9 +1,9 @@
 // Board nodes survive room polling: placed pieces animate only once.
 const SVG = 'http://www.w3.org/2000/svg';
-const symbol = side => side === 'rose' ? 'heart' : 'daisy';
+const symbol = side => side === 'rose' ? 'heart' : 'tulip';
 const icon = side => side === 'rose'
   ? '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 85C39 76 12 57 12 34C12 12 39 9 50 28C61 9 88 12 88 34C88 57 61 76 50 85Z" fill="currentColor"/><path d="M24 33Q26 22 37 25" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="6" stroke-linecap="round"/></svg>'
-  : '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="currentColor">' + Array.from({length:8}, (_, i) => `<ellipse cx="50" cy="26" rx="12" ry="20" transform="rotate(${i * 45} 50 50)"/>`).join('') + '</g><circle cx="50" cy="50" r="16" fill="#e8af55"/><circle cx="46" cy="45" r="5" fill="#ffe7a1"/></svg>';
+  : '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 89V48" fill="none" stroke="#477a53" stroke-width="6" stroke-linecap="round"/><path d="M48 80C28 80 22 65 23 58C38 60 47 66 48 80ZM53 86C73 83 80 68 78 61C62 65 54 74 53 86Z" fill="#629765"/><path d="M28 29Q35 12 50 9Q65 12 72 29L66 49H34Z" fill="#ee92b1"/><path d="M22 20Q38 24 50 42Q62 24 78 20V38C78 60 66 67 50 67C34 67 22 57 22 38Z" fill="currentColor"/><path d="M50 42V59" fill="none" stroke="#b63766" stroke-width="3" stroke-linecap="round"/><path d="M30 32V40Q30 48 34 51" fill="none" stroke="#ffe4ef" stroke-width="4" stroke-linecap="round"/></svg>';
 
 export function renderTicTacToe({ state, names, canMove, side, onMove, onRematch }) {
   const board = document.querySelector('#tttBoard');
@@ -30,7 +30,7 @@ export function renderTicTacToe({ state, names, canMove, side, onMove, onRematch
     const mark = value || '';
     if (tile.dataset.mark !== mark) {
       tile.dataset.mark = mark;
-      tile.innerHTML = value ? `<span class="ttt-piece ${value}">${icon(value)}</span>` : '';
+      tile.innerHTML = value ? `<span class="ttt-piece ttt-${value}">${icon(value)}</span>` : '';
     }
     tile.classList.toggle('winning', !!state.winning?.includes(i));
     tile.classList.toggle('last', state.last === i);
@@ -44,7 +44,7 @@ export function renderTicTacToe({ state, names, canMove, side, onMove, onRematch
   if (!players.children.length) {
     for (const player of ['rose', 'cream']) {
       const pill = document.createElement('div');
-      pill.className = `ttt-player ${player}`;
+      pill.className = `ttt-player ttt-${player}`;
       const art = document.createElement('span'); art.innerHTML = icon(player);
       const text = document.createElement('span');
       pill.append(art, text); players.append(pill);
@@ -53,7 +53,7 @@ export function renderTicTacToe({ state, names, canMove, side, onMove, onRematch
   ['rose', 'cream'].forEach((player, i) => {
     const pill = players.children[i];
     pill.classList.toggle('active', !state.winner && state.turn === player);
-    pill.lastChild.textContent = `${names[player]}${side === player ? ' (you)' : ''} · ${player === 'rose' ? 'hearts' : 'daisies'}`;
+    pill.lastChild.textContent = `${names[player]}${side === player ? ' (you)' : ''} · ${player === 'rose' ? 'hearts' : 'tulips'}`;
   });
   const status = state.winner === 'draw' ? 'A perfect tie. One more?' : state.winner
     ? `${names[state.winner]} wins! Three made for each other.`

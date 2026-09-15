@@ -130,7 +130,7 @@ export function placeMark(state, index, side) {
   next.board[index] = side;
   next.last = index;
   next.ply++;
-  next.history.push(`${side === 'rose' ? 'Heart' : 'Daisy'} · row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}`);
+  next.history.push(`${side === 'rose' ? 'Heart' : 'Tulip'} · row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}`);
   const line = TIC_TAC_TOE_LINES.find(cells => cells.every(cell => next.board[cell] === side));
   if (line) {
     next.winner = side;
