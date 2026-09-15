@@ -1,13 +1,13 @@
 # Love Notes: setup and phone checks
 
-The arcade stays available without accounts. Love Notes uses a separate `/notes` section, Better Auth email-code sign-in, D1 storage, and optional background Web Push. All drawing documents are stored privately in D1 (maximum 12,000 points, 200 strokes, 20 stickers, and a 400 KB request). There are no public drawing URLs and no R2 setup is needed for this release.
+The arcade stays available without accounts. Love Notes uses a separate `/notes` section, Better Auth email-code sign-in, D1 storage, and optional background Web Push. All drawing documents are stored privately in D1 (up to 50,000 points, 1,000 strokes, 100 stickers, and a 2.5 MB request). There are no public drawing URLs and no R2 setup is needed for this release.
 
 ## What is already implemented
 
 - Accounts with email codes, recovery by signing in again, 90-day rolling sessions, and device sign-out.
 - Expiring one-use partner invitations, revocation, one partner per account, and disconnect.
 - Typed, handwritten, and mixed colored notes, server drafts, search, pagination, saved keepsakes, reactions, and linked replies.
-- Pressure-aware pen, highlighter, whole-stroke eraser, undo/redo, stickers, and expanded drawing view.
+- Pressure-aware pen, highlighter, whole-stroke eraser, undo/redo, stickers, expanded drawing view, and a full color wheel with remembered recent colors.
 - Replay of final strokes only, reduced-motion support, full-note display, and image export.
 - Scheduled delivery, editing/cancellation before publication, atomic inbox publication and durable per-device notification jobs.
 - Web Push, private previews by default, unread badge where supported, subscription removal, retries and deep links.

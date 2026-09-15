@@ -24,7 +24,7 @@ async function bodyOf(req) {
   if(!req.headers.get('content-type')?.startsWith('application/json')) fail('Use JSON.',415);
   const reader=req.body?.getReader();let size=0,chunks=[];
   if(!reader)return {};
-  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>400000){await reader.cancel();fail('This note is too large.',413);}chunks.push(value);}
+  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>2500000){await reader.cancel();fail('This note is too large to send. Erase a few drawing strokes and try again.',413);}chunks.push(value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   try{return JSON.parse(new TextDecoder().decode(bytes));}catch{fail('Invalid request.');}
 }

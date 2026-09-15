@@ -73,5 +73,9 @@ assert.equal((await call('/api/notes/'+scheduled,undefined,a)).data.note.status,
 assert.equal((await call('/api/notes/'+id,undefined,b)).status,200,'old keepsakes survive disconnect');
 assert.throws(()=>validateDocument({...document,strokes:[{...document.strokes[0],points:[[Infinity,1,.5,0]]}]}));
 assert.throws(()=>validateDocument({...document,strokes:[{...document.strokes[0],color:'url(https://evil.test)'}]}));
+assert.equal(validateDocument({...document,strokes:[{...document.strokes[0],color:'#ff69b4'}]}).strokes[0].color,'#ff69b4','any safe six-digit color is accepted');
+const generous={...document,strokes:Array.from({length:250},(_,i)=>({color:i%2?'#ff69b4':'#12abef',tool:'pen',width:5,points:Array.from({length:200},(_,j)=>[j%600,(i+j)%500,.5,j])}))};
+assert.equal(validateDocument(generous).strokes.length,250,'large coloring sessions remain valid');
+assert.throws(()=>validateDocument({...generous,strokes:[...generous.strokes,{color:'#123456',tool:'pen',width:5,points:[[1,1,.5,0]]}]}),/extremely detailed/);
 await call('/api/auth/sign-out',{},a);assert.equal((await call('/api/notes/me',undefined,a)).status,401);
 console.log('Love Notes passed: real email-code auth, pairing, privacy, scheduled sends, receipts, saves, disconnection, logout and document validation.');

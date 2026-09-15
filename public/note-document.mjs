@@ -1,6 +1,8 @@
 // Shared, versioned note format. Only final visible strokes leave the composer.
 export const PAPERS = { pink:'#fbe1e8', yellow:'#fff0b9', cream:'#fff7e8', lavender:'#ede3f7', blue:'#dfedf7', sage:'#e1eddd' };
 export const INKS = ['#542b3a','#ad315d','#315d79','#356347','#593f83','#242424'];
+export const DRAWING_LIMITS = { strokes:1000, points:50000, pointsPerStroke:5000, stickers:100 };
+const validInk = value => typeof value==='string' && /^#[0-9a-f]{6}$/i.test(value);
 export const STICKERS = ['♥','🌷','✦','💋'];
 export function emptyDocument() {
   return { version:1, mode:'mix', paper:'pink', pattern:'plain', font:'serif', title:'', text:'', signature:'', occasion:'', strokes:[], stickers:[] };
@@ -17,10 +19,10 @@ export function validateDocument(value) {
     d[key] = value[key];
   }
   for (const [key,max] of Object.entries({title:100,text:4000,signature:80,occasion:100})) d[key] = boundedText(value[key] ?? '',max);
-  if (!Array.isArray(value.strokes) || value.strokes.length > 200 || !Array.isArray(value.stickers) || value.stickers.length > 20) throw new Error('This drawing is too detailed.');
+  if (!Array.isArray(value.strokes) || value.strokes.length > DRAWING_LIMITS.strokes || !Array.isArray(value.stickers) || value.stickers.length > DRAWING_LIMITS.stickers) throw new Error('This drawing is too detailed.');
   let count = 0;
   d.strokes = value.strokes.map(s => {
-    if (!INKS.includes(s.color) || ![2,5,10,18].includes(s.width) || !['pen','highlighter'].includes(s.tool) || !Array.isArray(s.points) || !s.points.length || s.points.length>1200) throw new Error('Invalid drawing stroke.');
+    if (!validInk(s.color) || ![2,5,10,18].includes(s.width) || !['pen','highlighter'].includes(s.tool) || !Array.isArray(s.points) || !s.points.length || s.points.length>DRAWING_LIMITS.pointsPerStroke) throw new Error('Invalid drawing stroke.');
     count += s.points.length;
     let previous = -1;
     const points = s.points.map(p => {
@@ -29,7 +31,7 @@ export function validateDocument(value) {
     });
     return {color:s.color,width:s.width,tool:s.tool,points};
   });
-  if(count>12000) throw new Error('Drawing limit reached. Try fewer strokes.');
+  if(count>DRAWING_LIMITS.points) throw new Error('This drawing is extremely detailed. Erase a few strokes to keep the note sendable.');
   d.stickers = value.stickers.map(s=> {
     if(!STICKERS.includes(s.face) || !Number.isFinite(s.x) || !Number.isFinite(s.y) || s.x<20 || s.x>580 || s.y<25 || s.y>475) throw new Error('Invalid sticker.');
     return {face:s.face,x:s.x,y:s.y};
