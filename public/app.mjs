@@ -463,6 +463,9 @@ addEventListener('pointercancel', () => {
 function ingest(data) {
   const firstSnapshot = !room || room.id !== data.id;
   const previousTurn = state.turn;
+  const raceOnly = kind() === 'grandprix' && data.state.game === 'grandprix' && healthy && !firstSnapshot
+    && JSON.stringify([state.phase,state.winner,state.switchRequest,room.rematch,room.opponentJoined,names,score])
+      === JSON.stringify([data.state.phase,data.state.winner,data.state.switchRequest,data.rematch,data.opponentJoined,data.names,data.score]);
   if (room && data.id === room.id && data.revision < room.revision) return;
 
   const changed = kind() !== (data.state.game || 'checkers')
@@ -502,6 +505,9 @@ function ingest(data) {
   }
   while (messages.children.length > 100) messages.firstElementChild.remove();
   if (wasAtBottom) messages.scrollTop = messages.scrollHeight;
+
+  // Physics snapshots do not need to rebuild the hidden checkers board and menus.
+  if (raceOnly) { renderRoomPanel(); renderGrandPrix(); return; }
 
   // Never redraw out from under a drag or a brush stroke.
   if (!drag?.ghost && !stroke && !puzzleDrag?.ghost && (changed || !busy)) render();
@@ -1968,7 +1974,7 @@ setLadybugs(lovebugsWanted);
 
 // Grand Prix uses the existing room credentials in this parent only. The 3D frame
 // can submit controls for this seat, never a player identity or a car position.
-let gpSending=false;
+let gpSending=false,gpLatestInput=null;
 const gpPending=[];
 function renderGrandPrix(){
  const frame=$('#gpFrame');if(!frame)return;
@@ -1984,7 +1990,7 @@ window.addEventListener('message',event=>{
  if(event.data?.type==='gp-loaded'){renderGrandPrix();return;}
  if(event.data?.type!=='gp-action')return;
  const body=event.data.body;if(!body||!['input','profile','config','ready','garage','pause'].includes(body.action))return;
- if(gpSending){if(body.action!=='input'&&gpPending.length<8)gpPending.push(body);return;}
+ if(gpSending){if(body.action==='input')gpLatestInput=body;else if(gpPending.length<8)gpPending.push(body);return;}
  gpDispatch(body);
 });
 async function gpDispatch(body){
@@ -1998,7 +2004,7 @@ async function gpDispatch(body){
    catch(error){if(error.status!==409||attempt===2)throw error;await syncRoom();if(room?.id!==id||kind()!=='grandprix')break;}
   }}
  }catch(error){frame.contentWindow?.postMessage({type:'gp-error',message:error.message},location.origin);}
- finally{gpSending=false;renderGrandPrix();if(gpPending.length&&generation===sessionGeneration)gpDispatch(gpPending.shift());else gpPending.length=0;}
+ finally{gpSending=false;renderGrandPrix();if(gpPending.length&&generation===sessionGeneration)gpDispatch(gpPending.shift());else if(gpLatestInput&&generation===sessionGeneration){const next=gpLatestInput;gpLatestInput=null;gpDispatch(next);}else{gpPending.length=0;gpLatestInput=null;}}
 }
 
 $('#gpExpand').onclick=()=>{const expanded=$('#grandprixSurface').classList.toggle('gp-expanded');$('#gpExpand').textContent=expanded?'✕ Back to room':'⛶ Expand race';};
