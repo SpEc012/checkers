@@ -69,7 +69,7 @@ for(let i=1;i<=12;i++){
  clock+=150;
  const a=await call(route('play'),{action:'input',seq:i,input:{throttle:true,right:i<4},distance:999999,side:'rose'});assert.equal(a.status,200);
  const b=await call(route('play'),{action:'input',seq:i,input:{throttle:true}},B);assert.equal(b.status,200);
- assert.deepEqual(a.data.state.inputs.cream,{left:false,right:i<4,throttle:true,brake:false,boost:false,use:false});
+ assert.deepEqual(a.data.state.inputs.cream,{left:false,right:i<4,throttle:true,brake:false,boost:false});
  r=b;
 }
 assert.ok(r.data.state.cars.every(c=>c.distance>0&&c.distance<100));

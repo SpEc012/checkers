@@ -1982,7 +1982,7 @@ function renderGrandPrix(){
  if(!active){$('#grandprixSurface').classList.remove('gp-expanded');$('#gpExpand').textContent='⛶ Expand race';}
  if(active&&!frame.getAttribute('src'))frame.src='/grand-prix.html?embed=1';
  frame.contentWindow?.postMessage({type:'gp-state',active,state:active?state:null,mode,side:mode==='online'?room?.side:'rose',host:mode==='local'||!!room?.host,joined:mode==='local'||!!room?.opponentJoined,names,clockOffset},location.origin);
- if(active){$('#turn').textContent=state.phase==='garage'?'Choose your kart and ready up':state.waiting||'Grand Prix · three laps';$('#hint').textContent='W / ↑ gas · A/D steer · S / ↓ brake · Space boost · E use item';}
+ if(active){$('#turn').textContent=state.phase==='garage'?'Choose your kart and ready up':state.waiting||'Grand Prix · three laps';$('#hint').textContent='W / ↑ gas · A/D steer · S / ↓ brake · Space boost';}
 }
 $('#gpFrame').addEventListener('load',renderGrandPrix);
 window.addEventListener('message',event=>{

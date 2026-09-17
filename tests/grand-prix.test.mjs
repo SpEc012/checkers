@@ -15,9 +15,22 @@ s=gpAction(s,{action:'input',seq:1,input:{throttle:true},distance:99999},'rose',
 now+=200;s=gpAction(s,{action:'input',seq:1,input:{throttle:true}},'cream',now,{joined:true});assert.ok(s.cars[0].speed>0);assert.equal(s.cars[1].speed,0,'fresh input does not move backwards in time');
 s=gpAction(s,{action:'input',seq:1,input:{throttle:false}},'rose',now,ctx);assert.equal(s.inputs.rose.throttle,true,'stale sequence cannot overwrite controls');
 const paused=gpAdvance(s,now+5000);assert.ok(paused.waiting);assert.equal(paused.cars[0].distance,s.cars[0].distance,'disconnection pauses shared time');
-// A shield blocks a projectile; without a shield, a hit can knock a kart off.
-let battle=structuredClone(s);battle.phase='racing';battle.solo=true;battle.lastAt=now;battle.startAt=0;battle.inputs={};battle.cars[1].distance=50;battle.cars[1].lane=3.5;battle.cars[1].shield=5;battle.hazards=[{id:9,type:'acorn',owner:'rose',distance:48.8,lane:3.5,life:3}];battle=gpAdvance(battle,now+30);assert.equal(battle.cars[1].shield,0);assert.equal(battle.cars[1].stun,0);
-battle.cars[1].invulnerable=0;battle.hazards=[{id:10,type:'acorn',owner:'rose',distance:battle.cars[1].distance-1,lane:3.5,life:3}];battle=gpAdvance(battle,now+60);assert.ok(battle.cars[1].stun>0);battle=gpAdvance(battle,now+600);assert.ok(battle.cars[1].recovery>0,'strong impact knocks kart off');battle=gpAdvance(battle,now+1300);battle=gpAdvance(battle,now+2000);battle=gpAdvance(battle,now+2600);assert.equal(battle.cars[1].recovery,0);assert.ok(Math.abs(battle.cars[1].lane)<4);
+// Existing rooms lose stale combat state and overlapping cars cannot knock each other off.
+let simple=structuredClone(s);simple.solo=true;simple.lastAt=now;simple.inputs={};
+for(const r of simple.cars)Object.assign(r,{distance:50,lane:3.5,speed:0,lateralSpeed:0,heading:0,item:'acorn',shield:5,stun:2,recovery:1,knock:14});
+simple.hazards=[{id:9,type:'acorn',owner:'rose',distance:50,lane:3.5,life:3}];
+simple=gpAdvance(simple,now+100);
+assert.deepEqual(simple.hazards,[]);
+for(const r of simple.cars){assert.equal(r.item,null);assert.equal(r.knock,0);assert.equal(r.recovery,0);assert.equal(r.lane,3.5)}
+// Match the exact approved prototype mechanics across turns, braking, boost and curbs.
+const {gpDrive:originalDrive}=await import('./fixtures/grand-prix-original-drive.mjs');
+let actual=structuredClone(s.cars[0]),expected=structuredClone(actual);
+for(let i=0;i<1800;i++){
+ const input={throttle:i%400<300,left:i%240<80,right:i%240>160,brake:i%400>360,boost:i%500<100};
+ const curvature=Math.sin(i*.007)*.04;
+ gpDrive(actual,input,curvature,1/60);originalDrive(expected,input,curvature,1/60);
+ assert.deepEqual(actual,expected);assert.ok(Math.abs(actual.lane)<=4.05);
+}
 // Inputs remain smooth, screen-right positive, and gas is required.
 const c=structuredClone(s.cars[0]);Object.assign(c,{speed:0,heading:0,lane:0,lateralSpeed:0,knock:0});gpDrive(c,{},0,1/60);assert.equal(c.speed,0);for(let i=0;i<100;i++)gpDrive(c,{throttle:true},0,1/60);gpDrive(c,{throttle:true,right:true},0,1/60);assert.ok(c.steer>0&&c.steer<.2);for(let i=0;i<100;i++)gpDrive(c,{brake:true},0,1/60);assert.equal(c.speed,0);
 // Drive every longer course, against bots, with the actual shared simulation.
@@ -28,4 +41,4 @@ for(let t=0;t<3;t++){
  }
  assert.equal(race.phase,'finished');assert.ok(race.cars[0].finish,'player completed the course');console.log(`Long course ${t+1}: ${Math.round(GP_TRACKS[t].length)}m per lap, finished at ${race.cars[0].finish.toFixed(1)}s`);
 }
-console.log('Grand Prix rules: consent, host-only bots, seat ownership, ready countdown, stale inputs, reconnect pause, items, knock-off/rescue, handling and full races passed.');
+console.log('Grand Prix rules: consent, host-only bots, seat ownership, ready countdown, stale inputs, reconnect pause, combat removal, original prototype handling and full races passed.');
