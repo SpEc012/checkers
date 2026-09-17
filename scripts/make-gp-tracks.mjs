@@ -1,0 +1,5 @@
+import {CatmullRomCurve3,Vector3} from 'three';
+import {writeFileSync} from 'node:fs';
+const source=[[[0,0,43],[33,1,35],[49,2,7],[33,5,-28],[0,2,-40],[-42,0,-27],[-49,1,9],[-29,0,39]],[[0,1,46],[37,5,37],[47,10,0],[23,15,-26],[-4,11,-14],[-30,7,-40],[-50,2,-11],[-40,0,29]],[[0,1,46],[37,2,40],[53,4,11],[27,7,-4],[39,5,-36],[7,2,-48],[-19,4,-21],[-47,2,-30],[-50,1,13],[-26,1,41]]];
+const tracks=source.map((points,i)=>{points=points.map(([x,y,z])=>[x*1.9,y,z*1.9]);const c=new CatmullRomCurve3(points.map(p=>new Vector3(...p)),true,'centripetal'),length=c.getLength();const curvature=Array.from({length:1024},(_,n)=>{const a=c.getTangentAt(n/1024),b=c.getTangentAt(((n/1024+.6/length)%1));return +((Math.atan2(a.x*b.z-a.z*b.x,a.x*b.x+a.z*b.z))/.6).toFixed(6)});return {name:['Tulip Turnpike','Mushroom Moonway','Lilypond Loop'][i],points,length,curvature}});
+writeFileSync('public/grand-prix-tracks.mjs','// Baked from the same curves used by the renderer; no graphics library on the server.\nexport const GP_TRACKS='+JSON.stringify(tracks)+';\n');

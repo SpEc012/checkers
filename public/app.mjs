@@ -1,3 +1,4 @@
+import {gpAction} from './grand-prix.mjs';
 // Our Little Arcade — the browser app.
 //
 // One page runs seven games, two ways to play (shared device or an online room)
@@ -32,7 +33,7 @@ const $$ = selector => document.querySelectorAll(selector);
 const PAGE_TITLE = 'Our Little Arcade · Dylan & Audrey';
 const SURFACES = {
   tictactoe: 'ttt', connect4: 'connect', draw: 'draw',
-  puzzle: 'puzzle', memory: 'memory', rps: 'rps', race: 'race',
+  puzzle: 'puzzle', memory: 'memory', rps: 'rps', race: 'race', grandprix: 'grandprix',
 };
 
 // Game and room state.
@@ -367,6 +368,7 @@ function renderArcade() {
   if (game === 'puzzle') renderPuzzle();
   if (game === 'memory') renderMemory();
   if (game === 'rps') renderThrows();
+  renderGrandPrix();
   if (game === 'race') renderRace();
   else raceView?.stop();
 }
@@ -593,6 +595,7 @@ function goMenu() {
   celebration.reset();
   resetThrow();
   raceView?.stop();
+  $('#gpFrame')?.contentWindow?.postMessage({type:'gp-state',active:false},location.origin);
   clearRaceInput();
   document.body.classList.remove('in-game');
   $('#mobileTabs').hidden = true;
@@ -824,6 +827,8 @@ for (const button of $$('[data-pick]')) {
     preferredGame = button.dataset.pick;
     for (const card of $$('[data-pick]')) card.classList.toggle('chosen', card === button);
     $('#selectedGameLabel').textContent = `${gameNames[preferredGame]} selected · choose how to play`;
+    $('#chooseLocal h2').textContent=preferredGame==='grandprix'?'Single player':'Side by side';
+    $('#chooseLocal p').textContent=preferredGame==='grandprix'?'Your kart, your pace. Add bots or practice solo.':'Take turns on this device. Both colors, one cozy evening.';
     $('#createGameLabel').textContent = `Playing ${gameNames[preferredGame]}`;
   };
 }
@@ -1884,6 +1889,7 @@ const celebration = createCelebration({
 });
 
 function updateCelebration() {
+  if(kind()==='grandprix'){celebration.close();return;}
   const game = kind();
   const outcome = state.winner || (game === 'rps' ? state.roundResult : null);
   celebration.update({
@@ -1959,3 +1965,40 @@ if (document.modelContext?.registerTool) {
 }
 
 setLadybugs(lovebugsWanted);
+
+// Grand Prix uses the existing room credentials in this parent only. The 3D frame
+// can submit controls for this seat, never a player identity or a car position.
+let gpSending=false;
+const gpPending=[];
+function renderGrandPrix(){
+ const frame=$('#gpFrame');if(!frame)return;
+ const active=mode!==null&&kind()==='grandprix';
+ if(!active){$('#grandprixSurface').classList.remove('gp-expanded');$('#gpExpand').textContent='⛶ Expand race';}
+ if(active&&!frame.getAttribute('src'))frame.src='/grand-prix.html?embed=1';
+ frame.contentWindow?.postMessage({type:'gp-state',active,state:active?state:null,mode,side:mode==='online'?room?.side:'rose',host:mode==='local'||!!room?.host,joined:mode==='local'||!!room?.opponentJoined,names,clockOffset},location.origin);
+ if(active){$('#turn').textContent=state.phase==='garage'?'Choose your kart and ready up':state.waiting||'Grand Prix · three laps';$('#hint').textContent='W / ↑ gas · A/D steer · S / ↓ brake · Space boost · E use item';}
+}
+$('#gpFrame').addEventListener('load',renderGrandPrix);
+window.addEventListener('message',event=>{
+ const frame=$('#gpFrame');if(event.origin!==location.origin||event.source!==frame.contentWindow||kind()!=='grandprix'||mode===null)return;
+ if(event.data?.type==='gp-loaded'){renderGrandPrix();return;}
+ if(event.data?.type!=='gp-action')return;
+ const body=event.data.body;if(!body||!['input','profile','config','ready','garage','pause'].includes(body.action))return;
+ if(gpSending){if(body.action!=='input'&&gpPending.length<8)gpPending.push(body);return;}
+ gpDispatch(body);
+});
+async function gpDispatch(body){
+ if(mode===null||kind()!=='grandprix'){gpPending.length=0;return;}
+ const frame=$('#gpFrame'),generation=sessionGeneration;
+ gpSending=true;
+ try{
+  if(mode==='local'){const next=gpAction(state,body,'rose',Date.now(),{solo:true,host:true,joined:true});if(next){state=next;renderGrandPrix();}}
+  else{const id=room.id;for(let attempt=0;attempt<3;attempt++){
+   try{const data=await request(`/api/rooms/${id}/play`,body);if(room?.id===id&&kind()==='grandprix'&&generation===sessionGeneration)ingest(data);break;}
+   catch(error){if(error.status!==409||attempt===2)throw error;await syncRoom();if(room?.id!==id||kind()!=='grandprix')break;}
+  }}
+ }catch(error){frame.contentWindow?.postMessage({type:'gp-error',message:error.message},location.origin);}
+ finally{gpSending=false;renderGrandPrix();if(gpPending.length&&generation===sessionGeneration)gpDispatch(gpPending.shift());else gpPending.length=0;}
+}
+
+$('#gpExpand').onclick=()=>{const expanded=$('#grandprixSurface').classList.toggle('gp-expanded');$('#gpExpand').textContent=expanded?'✕ Back to room':'⛶ Expand race';};

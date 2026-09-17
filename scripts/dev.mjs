@@ -24,15 +24,15 @@ const TYPES = {
 };
 
 /** Bundle the scene once per run so `import 'three'` resolves in the browser. */
-let scenePromise = null;
-function bundleScene() {
-  scenePromise ??= build({
-    entryPoints: [join(ROOT, 'rps-scene.mjs')],
+const scenePromises = new Map();
+function bundleScene(file='rps-scene.mjs') {
+  if(!scenePromises.has(file))scenePromises.set(file,build({
+    entryPoints: [join(ROOT, file)],
     bundle: true,
     format: 'esm',
     write: false,
-  }).then(result => result.outputFiles[0].text);
-  return scenePromise;
+  }).then(result => result.outputFiles[0].text));
+  return scenePromises.get(file);
 }
 
 createServer(async (request, response) => {
@@ -47,9 +47,9 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (path === '/rps-scene.mjs') {
+  if (path === '/rps-scene.mjs' || path === '/grand-prix-scene.mjs') {
     try {
-      send(200, TYPES['.mjs'], await bundleScene());
+      send(200, TYPES['.mjs'], await bundleScene(path.slice(1)));
     } catch (error) {
       send(500, 'text/plain', `Could not bundle the scene: ${error.message}`);
     }

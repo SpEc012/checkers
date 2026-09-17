@@ -25,6 +25,7 @@ const TYPES = {
 
 // Bundled on its own, and never embedded twice.
 const BUNDLED = 'rps-scene.mjs';
+const EXTRA_BUNDLED='grand-prix-scene.mjs';
 
 const extensionOf = file => file.slice(file.lastIndexOf('.'));
 
@@ -32,7 +33,7 @@ const extensionOf = file => file.slice(file.lastIndexOf('.'));
 function collectAssets() {
   const assets = {};
   for (const file of readdirSync('public').sort()) {
-    if (file === BUNDLED || file.startsWith('.')) continue;
+    if (file === BUNDLED || file === EXTRA_BUNDLED || file.startsWith('.')) continue;
     const type = TYPES[extensionOf(file)];
     if (!type) throw new Error(`No content type for public/${file}. Add one to scripts/build.mjs.`);
     const [contentType, encoding] = type;
@@ -86,6 +87,9 @@ const scene = await build({
   write: false,
 });
 assets[`/${BUNDLED}`] = { body: scene.outputFiles[0].text, type: TYPES['.mjs'][0] };
+
+const gpScene=await build({entryPoints:['public/'+EXTRA_BUNDLED],bundle:true,format:'esm',minify:true,write:false});
+assets['/'+EXTRA_BUNDLED]={body:gpScene.outputFiles[0].text,type:TYPES['.mjs'][0]};
 
 await build({
   stdin:{contents:`import {api} from './server/api.mjs';\nimport {notesApi} from './server/notes-api.mjs';\nimport {dispatchNotes} from './server/notes-push.mjs';\nconst assets=${JSON.stringify(assets)};\n${WORKER_RUNTIME}`,resolveDir:process.cwd(),sourcefile:'worker-entry.mjs'},

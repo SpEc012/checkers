@@ -1,3 +1,4 @@
+import {gpAction} from '../public/grand-prix.mjs';
 // The room API, served by a Cloudflare Worker.
 //
 // Rooms live in D1 and hold the whole game state as JSON. Every write is
@@ -320,6 +321,11 @@ export async function api(request, env) {
         else state.puzzleRequest = { side, config };
       }
 
+    } else if (action === 'play' && state.game === 'grandprix') {
+      let next;try{next=gpAction(state,body,side,now,{host:isHost,joined:!!row.guest});}catch(error){fail(error.message,error.status||400);}
+      if(!next) fail('That race action is not available. Refresh the room and try again.',409);
+      if(!state.winner&&next.winner) award(next.winner);
+      state=next;
     } else if (action === 'play') {
       const racing = state.game === 'race';
       const partnerSeen = isHost ? row.guest_seen : row.host_seen;
@@ -378,7 +384,7 @@ export async function api(request, env) {
         rematch = null;
       } else if (body.accept === true) {
         if (!rematch || rematch === side) fail('There is no request from your opponent.');
-        state = newGame(state.game || 'checkers', { config: state.config, photoKey: state.photoKey });
+        state = newGame(state.game || 'checkers', { config: state.config, photoKey: state.photoKey, profiles:state.profiles });
         rematch = null;
       } else {
         rematch = side;

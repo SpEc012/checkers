@@ -1,3 +1,4 @@
+import { gpNew } from './grand-prix.mjs';
 // The games that are not checkers, plus the redaction rules that keep secrets
 // secret.
 //
@@ -16,6 +17,7 @@ export const gameNames = {
   memory: 'Memory Match',
   rps: 'Rock Paper Scissors',
   race: 'Ladybug Race',
+  grandprix: 'Lovebug Grand Prix',
 };
 
 const PROMPTS = [
@@ -102,6 +104,7 @@ export function puzzleOptions(options = {}) {
 /** Start any game. Checkers keeps its own richer shape. */
 export function newGame(game = 'checkers', options = {}) {
   if (!Object.hasOwn(gameNames, game)) throw new Error('Choose an available game.');
+  if (game === 'grandprix') return gpNew(options);
   if (game === 'checkers') return { ...initial(), game };
 
   const state = {
