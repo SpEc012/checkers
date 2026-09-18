@@ -75,12 +75,20 @@ for(let i=1;i<=12;i++){
 assert.ok(r.data.state.cars.every(c=>c.distance>0&&c.distance<100));
 const before=r.data.state.cars.map(c=>c.distance);clock+=5000;r=await call(route('play'),{action:'input',seq:13,input:{throttle:true}});assert.deepEqual(r.data.state.cars.map(c=>c.distance),before);assert.match(r.data.state.waiting,/reconnect/);
 r=await call(route('play'),{action:'input',seq:13,input:{throttle:true}},B);clock+=150;r=await call(route('play'),{action:'input',seq:14,input:{throttle:true}});assert.ok(r.data.state.cars[0].distance>before[0]);
-// Concurrent writers cannot erase the other driver's input: loser retries.
-clock+=150;const pair=await Promise.all([call(route('play'),{action:'input',seq:15,input:{throttle:true}}),call(route('play'),{action:'input',seq:15,input:{brake:true}},B)]);for(let i=0;i<pair.length;i++)if(pair[i].status===409)assert.equal((await call(route('play'),{action:'input',seq:15,input:i?{brake:true}:{throttle:true}},i?B:A)).status,200);
-r=await call(route('sync'),{});assert.equal(r.data.state.inputs.rose.brake,true);assert.equal(r.data.state.inputs.cream.throttle,true);
-r=await call(route('play'),{action:'pause'},B);const elapsed=r.data.state.elapsed;clock+=200;r=await call(route('play'),{action:'input',seq:16,input:{throttle:true}});assert.equal(r.data.state.elapsed,elapsed);r=await call(route('play'),{action:'pause'});
+// Concurrent writers merge on the server; neither phone sees a room-change error.
+clock+=150;const pair=await Promise.all([call(route('play'),{action:'input',seq:15,input:{throttle:true}}),call(route('play'),{action:'input',seq:15,input:{brake:true}},B)]);assert.deepEqual(pair.map(x=>x.status),[200,200]);
+for(let seq=16;seq<=40;seq++){
+ clock+=125;
+ const burst=await Promise.all([
+  call(route('play'),{action:'input',seq,input:{throttle:true,left:seq%2===0}}),
+  call(route('play'),{action:'input',seq,input:{throttle:true,right:seq%2===1}},B),
+ ]);
+ assert.deepEqual(burst.map(x=>x.status),[200,200],`simultaneous control packet ${seq}`);
+}
+r=await call(route('sync'),{});assert.equal(r.data.state.inputs.rose.throttle,true);assert.equal(r.data.state.inputs.cream.throttle,true);assert.equal(r.data.state.seq.rose,40);assert.equal(r.data.state.seq.cream,40);
+r=await call(route('play'),{action:'pause'},B);const elapsed=r.data.state.elapsed;clock+=200;r=await call(route('play'),{action:'input',seq:41,input:{throttle:true}});assert.equal(r.data.state.elapsed,elapsed);r=await call(route('play'),{action:'pause'});
 // Fixture at finish line verifies authoritative awards and no duplicate score.
-const final=structuredClone(r.data.state);final.pausedBy=null;final.heartbeats={rose:clock,cream:clock};final.inputs={rose:{throttle:true},cream:{throttle:true}};final.cars.forEach((c,i)=>Object.assign(c,{distance:GP_TRACKS[1].length*3-.05-i*.02,speed:20,heading:0,lane:i?2:-2}));sqlite.prepare('UPDATE rooms SET state=? WHERE id=?').run(JSON.stringify(final),id);clock+=100;r=await call(route('play'),{action:'input',seq:17,input:{throttle:true}});assert.equal(r.data.state.phase,'finished');assert.equal(r.data.score.rose+r.data.score.cream,1);r=await call(route('play'),{action:'input',seq:18,input:{}});assert.equal(r.data.score.rose+r.data.score.cream,1);
+const final=structuredClone(r.data.state);final.pausedBy=null;final.heartbeats={rose:clock,cream:clock};final.inputs={rose:{throttle:true},cream:{throttle:true}};final.cars.forEach((c,i)=>Object.assign(c,{distance:GP_TRACKS[1].length*3-.05-i*.02,speed:20,heading:0,lane:i?2:-2}));sqlite.prepare('UPDATE rooms SET state=? WHERE id=?').run(JSON.stringify(final),id);clock+=100;r=await call(route('play'),{action:'input',seq:42,input:{throttle:true}});assert.equal(r.data.state.phase,'finished');assert.equal(r.data.score.rose+r.data.score.cream,1);r=await call(route('play'),{action:'input',seq:43,input:{}});assert.equal(r.data.score.rose+r.data.score.cream,1);
 r=await call(route('play'),{action:'garage'});assert.equal(r.data.state.phase,'finished');r=await call(route('play'),{action:'garage',accept:true},B);assert.equal(r.data.state.phase,'garage');
 r=await call(route('play'),{action:'config',track:2,bots:3});r=await call(route('play'),{action:'config',accept:true},B);assert.equal(r.data.state.config.bots,3);
 await call(route('play'),{action:'ready'});r=await call(route('play'),{action:'ready'},B);assert.equal(r.data.state.cars.length,5);

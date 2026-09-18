@@ -396,7 +396,41 @@ export async function api(request, env) {
       .prepare('UPDATE rooms SET state=?,score=?,messages=?,rematch=?,revision=revision+1,updated=? WHERE id=? AND revision=? AND closed=0')
       .bind(JSON.stringify(state), JSON.stringify(score), JSON.stringify(messages), rematch, now, id, row.revision)
       .run();
-    if (!written.meta.changes) fail('Your room just changed. Try again.', 409);
+    if (!written.meta.changes && action === 'play' && state.game === 'grandprix') {
+      // Both racers send controls at the same time. A normal compare-and-swap
+      // loser must merge its input into the winner's newer race snapshot,
+      // rather than turning harmless network timing into a visible 409.
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const latest = await loadRoom(db, id);
+        if (!latest || latest.closed) fail('This room has ended. Join or create another.', 410);
+        const latestIsHost = latest.host === token;
+        const latestIsGuest = latest.guest === token;
+        if (!latestIsHost && !latestIsGuest) fail('You do not have a seat in this room.', 403);
+        const latestState = JSON.parse(latest.state);
+        if (latestState.game !== 'grandprix') fail('Your game changed. Try again.', 409);
+        const latestSide = latestIsHost ? latest.host_side : opposite(latest.host_side);
+        let merged;
+        try {
+          merged = gpAction(latestState, body, latestSide, now, {
+            host: latestIsHost,
+            joined: !!latest.guest,
+          });
+        } catch (error) {
+          fail(error.message, error.status || 400);
+        }
+        if (!merged) fail('That race action is not available. Refresh the room and try again.', 409);
+        const latestScore = JSON.parse(latest.score);
+        if (!latestState.winner && merged.winner && ['rose', 'cream'].includes(merged.winner)) {
+          latestScore[merged.winner]++;
+        }
+        const retried = await db
+          .prepare('UPDATE rooms SET state=?,score=?,revision=revision+1,updated=? WHERE id=? AND revision=? AND closed=0')
+          .bind(JSON.stringify(merged), JSON.stringify(latestScore), now, id, latest.revision)
+          .run();
+        if (retried.meta.changes) return json(summary(await loadRoom(db, id), token, now));
+      }
+    }
+    if (!written.meta.changes) fail('Your room is catching up. Keep racing.', 409);
 
     if (oldPhoto && oldPhoto !== state.photoKey && env.BUCKET) await env.BUCKET.delete(oldPhoto);
     return json(summary(await loadRoom(db, id), token, now));

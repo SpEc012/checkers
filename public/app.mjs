@@ -2003,7 +2003,14 @@ async function gpDispatch(body){
    try{const data=await request(`/api/rooms/${id}/play`,body);if(room?.id===id&&kind()==='grandprix'&&generation===sessionGeneration)ingest(data);break;}
    catch(error){if(error.status!==409||attempt===2)throw error;await syncRoom();if(room?.id!==id||kind()!=='grandprix')break;}
   }}
- }catch(error){frame.contentWindow?.postMessage({type:'gp-error',message:error.message},location.origin);}
+ }catch(error){
+  // A control packet may lose a race with the other player's packet. The
+  // server normally merges it; if contention lasts longer, refresh quietly
+  // and let the next packet carry the current controls instead of covering
+  // the track with a scary room-change error.
+  if(body.action==='input'&&error.status===409){gpLatestInput=body;await syncRoom();}
+  else frame.contentWindow?.postMessage({type:'gp-error',message:error.message},location.origin);
+ }
  finally{gpSending=false;renderGrandPrix();if(gpPending.length&&generation===sessionGeneration)gpDispatch(gpPending.shift());else if(gpLatestInput&&generation===sessionGeneration){const next=gpLatestInput;gpLatestInput=null;gpDispatch(next);}else{gpPending.length=0;gpLatestInput=null;}}
 }
 
