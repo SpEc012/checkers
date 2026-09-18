@@ -31,6 +31,7 @@
       <span class="tiny">Two Lovebugs</span>
     </a>
     <a href="/notes" class="icon">♡ Love Notes</a>
+    <a href="/garden" class="icon">✿ Our Garden</a>
     <div class="dedication">Dylan <span>♥</span> Audrey</div>
     <button id="notificationSettings" class="icon" aria-label="Message alerts and sound settings">✦ Alerts</button>
     <button id="disableLadybugs" class="icon" aria-pressed="true">Hide ladybugs</button>
@@ -66,11 +67,11 @@
       <button data-pick="rps">
         <span aria-hidden="true">✂︎</span><b>Rock Paper Scissors</b><small>First to three wins</small>
       </button>
-      <button data-pick="grandprix"><span aria-hidden="true">🏎</span><b>Lovebug Grand Prix</b><small>3D garden racing · together or solo</small></button>
       <button data-pick="race">
         <span aria-hidden="true">🐞</span><b>Ladybug Race</b><small>Crawl to the ribbon, on the beat</small>
       </button>
     </div>
+    <p class="selection-label"><a href="/garden">🌷 Our shared garden & ladybug →</a></p>
     <p class="selection-label"><a href="/notes">Leave a note for their day ♡ →</a></p>
     <p id="selectedGameLabel" class="selection-label">Checkers selected · choose how to play</p>
 
@@ -160,7 +161,6 @@
         <button data-switch="puzzle">▦ Photo Puzzle</button>
         <button data-switch="memory">✿ Memory Match</button>
         <button data-switch="rps">✂︎ Rock Paper Scissors</button>
-        <button data-switch="grandprix">🏎 Grand Prix</button>
         <button data-switch="race">🐞 Ladybug Race</button>
       </nav>
 
@@ -279,7 +279,6 @@
         </div>
 
         <!-- Ladybug Race. The whole surface is drawn by race.mjs. -->
-        <section id="grandprixSurface" hidden><button id="gpExpand" type="button" style="margin:8px 0">⛶ Expand race</button><iframe id="gpFrame" title="Lovebug Grand Prix" style="width:100%;height:min(900px,85dvh);min-height:650px;border:0;border-radius:24px" allow="fullscreen" allowfullscreen></iframe></section>
         <section id="raceSurface" class="race-surface" hidden aria-label="Ladybug Race"></section>
 
         <!-- Photo Puzzle -->

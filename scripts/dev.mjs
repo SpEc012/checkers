@@ -47,7 +47,11 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (path === '/rps-scene.mjs' || path === '/grand-prix-scene.mjs') {
+  if (path === '/garden.js') {
+    try {const result=await build({entryPoints:['src/garden.jsx'],bundle:true,format:'esm',write:false});send(200,TYPES['.js'],result.outputFiles[0].text);}catch(error){send(500,'text/plain',error.message);}return;
+  }
+  if (path.startsWith('/grand-prix') || path.startsWith('/race3d')) {response.writeHead(302,{Location:'/garden'});response.end();return;}
+  if (path === '/rps-scene.mjs') {
     try {
       send(200, TYPES['.mjs'], await bundleScene(path.slice(1)));
     } catch (error) {
@@ -56,7 +60,8 @@ createServer(async (request, response) => {
     return;
   }
 
-  const file = path === '/notes' ? 'notes.html' : path === '/' ? 'index.html' : path.replace(/^\/+/, '');
+  const file = path === '/garden' ? 'garden.html' : path === '/notes' ? 'notes.html' : path === '/' ? 'index.html' : path.replace(/^\/+/, '');
+  if(path==='/garden.css'){send(200,TYPES['.css'],await readFile('dist/garden.css'));return;}
   if (file.includes('..')) {
     send(403, 'text/plain', 'Nope.');
     return;

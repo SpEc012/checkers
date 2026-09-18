@@ -1,4 +1,5 @@
 import { hashPassword } from 'better-auth/crypto';
+import { sharedGarden } from './garden-api.mjs';
 import { createNotesAuth, notesConfigured } from './notes-auth.mjs';
 import { validateDocument, hasContent } from '../public/note-document.mjs';
 import { dispatchNotes, publishDueNotes, pushConfigured, validateSubscription } from './notes-push.mjs';
@@ -58,11 +59,12 @@ async function handleNotes(req,env,ctx,sessionHeaders) {
   }
   const sessionResult=await auth.api.getSession({headers:req.headers,returnHeaders:true});
   for(const cookie of sessionResult.headers.getSetCookie())sessionHeaders.append('Set-Cookie',cookie);
-  const logged=sessionResult.response;if(!logged)fail('Sign in to open your notes.',401);
+  const logged=sessionResult.response;if(!logged)fail(path==='/api/notes/garden'?'Sign in to open your shared garden.':'Sign in to open your notes.',401);
   const uid=logged.user.id, now=Date.now();
   if(req.method==='POST') await throttle(db,uid,90);
   const b=req.method==='POST'?await bodyOf(req):{};
   const pair=await membership(db,uid);
+  if(path==='/api/notes/garden')return json(await sharedGarden(db,pair,{id:uid,name:logged.user.name},b,req.method,now));
   if(path==='/api/notes/credentials' && req.method==='POST') {
     if(!logged.user.emailVerified)fail('Verify your email first.',403);
     if(now-new Date(logged.session.createdAt).getTime()>10*60*1000)fail('For account changes, sign in again with your password or an email code first.',403);

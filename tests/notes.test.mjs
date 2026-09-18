@@ -12,6 +12,7 @@ const mail=new Map();const env={DB,NOTES_ORIGIN:'https://notes.test',NOTES_EMAIL
 async function call(path,body,cookie='') {const r=await notesApi(new Request('https://notes.test'+path,{method:body===undefined?'GET':'POST',headers:{origin:'https://notes.test','content-type':'application/json',cookie,'cf-connecting-ip':'192.0.2.1'},body:body===undefined?undefined:JSON.stringify(body)}),env);const data=await r.json();return {status:r.status,data,cookie:r.headers.getSetCookie().map(x=>x.split(';')[0]).join('; ')};}
 async function login(email,name) {let r=await call('/api/auth/email-otp/send-verification-otp',{email,type:'sign-in'});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(mail.get(email));r=await call('/api/auth/sign-in/email-otp',{email,otp:mail.get(email),name});assert.equal(r.status,200,JSON.stringify(r.data));assert.ok(r.cookie);return r.cookie;}
 let a=await login('dylan@example.test','Dylan'),b=await login('audrey@example.test','Audrey'),c=await login('stranger@example.test','Stranger');
+sql.exec(readFileSync('drizzle/0004_shared_garden.sql','utf8'));
 assert.equal((await call('/api/notes/me',undefined,a)).data.user.name,'Dylan');
 const ownerId=(await call('/api/notes/me',undefined,a)).data.user.id;
 sql.prepare('INSERT INTO ln_throttle(key,count,reset_at) VALUES(?,?,?)').run(ownerId+':invite',99,Date.now()+3600000);
@@ -20,6 +21,16 @@ for(let i=0;i<7;i++){const again=await call('/api/notes/invites',{},a);assert.eq
 assert.equal((await call('/api/notes/invite',{token},b)).data.name,'Dylan');
 assert.equal((await call('/api/notes/invite',{token,accept:true},b)).status,200);
 assert.equal((await call('/api/notes/invite',{token,accept:true},c)).status,404);
+// The same permanent partnership owns the garden; never trust a client pair ID.
+assert.equal((await call('/api/notes/garden')).status,401);
+assert.equal((await call('/api/notes/garden',undefined,c)).status,403);
+const gardenA=await call('/api/notes/garden',undefined,a),gardenB=await call('/api/notes/garden',undefined,b);
+assert.equal(gardenA.status,200);assert.deepEqual(gardenA.data.state.plots,gardenB.data.state.plots);
+const seedRequest={action:'plant',plot:0,seed:'tulip',requestId:crypto.randomUUID(),pairId:'forged'};
+const gardenPair=await Promise.all([call('/api/notes/garden',seedRequest,a),call('/api/notes/garden',{action:'plant',plot:1,seed:'rose',requestId:crypto.randomUUID()},b)]);
+assert.deepEqual(gardenPair.map(r=>r.status),[200,200]);
+const shared=await call('/api/notes/garden',undefined,b);assert.equal(shared.data.state.plots[0].type,'tulip');assert.equal(shared.data.state.plots[1].type,'rose');assert.equal(shared.data.state.bondDays,1);
+await call('/api/notes/garden',seedRequest,a);assert.equal((await call('/api/notes/garden',undefined,b)).data.state.xp,shared.data.state.xp);
 // Password setup preserves the verified user and permanent partnership.
 let setup=await call('/api/notes/credentials',{username:'Dylan',password:'a-private-password-123'},a);
 assert.equal(setup.status,200,JSON.stringify(setup.data));
@@ -68,6 +79,7 @@ await call('/api/notes/'+id,{action:'save',value:true},b);assert.equal((await ca
 assert.equal((await call('/api/notes/'+id,{action:'send',document,revision:1},a)).status,400,'sent notes cannot be edited');
 const scheduled=crypto.randomUUID();await call('/api/notes/'+scheduled,{action:'schedule',document,dueAt:Date.now()+60000,timezone:'UTC'},a);
 await call('/api/notes/disconnect',{},b);await dispatchNotes(env,Date.now()+120000);
+assert.equal((await call('/api/notes/garden',undefined,a)).status,403,'disconnect revokes garden access');
 assert.equal((await call('/api/notes/'+scheduled,undefined,b)).status,404);
 assert.equal((await call('/api/notes/'+scheduled,undefined,a)).data.note.status,'cancelled');
 assert.equal((await call('/api/notes/'+id,undefined,b)).status,200,'old keepsakes survive disconnect');

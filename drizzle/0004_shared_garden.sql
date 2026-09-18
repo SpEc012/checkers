@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS ln_garden (
+ pair_id TEXT PRIMARY KEY REFERENCES ln_pair(id),
+ state TEXT NOT NULL,
+ revision INTEGER NOT NULL DEFAULT 0,
+ updated_at INTEGER NOT NULL
+);

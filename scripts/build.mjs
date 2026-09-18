@@ -8,6 +8,7 @@
 
 import { build } from 'esbuild';
 import { builtinModules } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, cpSync, rmSync } from 'node:fs';
 
 const TYPES = {
@@ -25,7 +26,6 @@ const TYPES = {
 
 // Bundled on its own, and never embedded twice.
 const BUNDLED = 'rps-scene.mjs';
-const EXTRA_BUNDLED='grand-prix-scene.mjs';
 
 const extensionOf = file => file.slice(file.lastIndexOf('.'));
 
@@ -33,7 +33,7 @@ const extensionOf = file => file.slice(file.lastIndexOf('.'));
 function collectAssets() {
   const assets = {};
   for (const file of readdirSync('public').sort()) {
-    if (file === BUNDLED || file === EXTRA_BUNDLED || file.startsWith('.')) continue;
+    if (file === BUNDLED || file.startsWith('grand-prix') || file.startsWith('race3d') || file.startsWith('.')) continue;
     const type = TYPES[extensionOf(file)];
     if (!type) throw new Error(`No content type for public/${file}. Add one to scripts/build.mjs.`);
     const [contentType, encoding] = type;
@@ -56,10 +56,11 @@ export default {
       return Response.redirect(url.href, 308);
     }
     const path = url.pathname;
+    if(path.startsWith('/grand-prix') || path.startsWith('/race3d')) return Response.redirect(url.origin+'/garden',302);
     if (path.startsWith("/api/notes") || path.startsWith("/api/auth/")) return notesApi(request,env,ctx);
     if (path.startsWith("/api/")) return api(request, env);
 
-    const asset = assets[path === "/" ? "/index.html" : (path === "/notes" || path.startsWith("/notes/")) ? "/notes.html" : path];
+    const asset = assets[path === "/" ? "/index.html" : (path === "/notes" || path.startsWith("/notes/")) ? "/notes.html" : path === '/garden' || path.startsWith('/garden/') ? '/garden.html' : path];
     if (!asset) return new Response("Not found", { status: 404 });
     return new Response(asset.base64 ? decode(asset.base64) : asset.body, {
       headers: {
@@ -88,8 +89,10 @@ const scene = await build({
 });
 assets[`/${BUNDLED}`] = { body: scene.outputFiles[0].text, type: TYPES['.mjs'][0] };
 
-const gpScene=await build({entryPoints:['public/'+EXTRA_BUNDLED],bundle:true,format:'esm',minify:true,write:false});
-assets['/'+EXTRA_BUNDLED]={body:gpScene.outputFiles[0].text,type:TYPES['.mjs'][0]};
+const garden=await build({entryPoints:['src/garden.jsx'],bundle:true,format:'esm',minify:true,write:false,define:{'process.env.NODE_ENV':'"production"'}});
+assets['/garden.js']={body:garden.outputFiles[0].text,type:TYPES['.js'][0]};
+execFileSync(process.execPath,['node_modules/@tailwindcss/cli/dist/index.mjs','-i','src/garden.css','-o','dist/garden.css','--minify'],{stdio:'inherit'});
+assets['/garden.css']={body:readFileSync('dist/garden.css','utf8'),type:TYPES['.css'][0]};
 
 await build({
   stdin:{contents:`import {api} from './server/api.mjs';\nimport {notesApi} from './server/notes-api.mjs';\nimport {dispatchNotes} from './server/notes-push.mjs';\nconst assets=${JSON.stringify(assets)};\n${WORKER_RUNTIME}`,resolveDir:process.cwd(),sourcefile:'worker-entry.mjs'},
